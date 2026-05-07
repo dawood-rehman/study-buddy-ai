@@ -57,6 +57,10 @@ export async function ensureIndexes() {
       db.collection("feedback").createIndex({ createdAt: -1 }),
       db.collection("feedback").createIndex({ userId: 1, createdAt: -1 }),
       db.collection("feedback").createIndex({ status: 1, createdAt: -1 }),
+      db.collection("books").createIndex({ status: 1, createdAt: -1 }),
+      db.collection("books").createIndex({ language: 1, status: 1 }),
+      db.collection("books").createIndex({ genres: 1, status: 1 }),
+      db.collection("books").createIndex({ tags: 1, status: 1 }),
     ]);
   }).catch((error) => {
     cache.indexesPromise = undefined;

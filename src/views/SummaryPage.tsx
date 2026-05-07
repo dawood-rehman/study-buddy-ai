@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
 import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
-import { PracticeTestPanel } from "@/components/PracticeTestPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -125,12 +124,6 @@ export default function SummaryPage() {
         )}
       </div>
 
-      <PracticeTestPanel
-        language={language}
-        sourceTitle="Summary Generator"
-        defaultContent={[textInput, summary || ""].filter(Boolean).join("\n\n")}
-        className="mt-6"
-      />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { CheckCircle2, ChevronRight, Languages, Loader2, Map, MessageCircle, Sparkles } from "lucide-react";
 import { GeneratedContent } from "@/components/GeneratedContent";
 import { PageHeader } from "@/components/PageHeader";
-import { PracticeTestPanel } from "@/components/PracticeTestPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -268,12 +267,6 @@ export default function GrammarPage() {
         </TabsContent>
       </Tabs>
 
-      <PracticeTestPanel
-        language="english"
-        sourceTitle="Grammar Coach"
-        defaultContent={[roadmapGoals, lesson || tutorReply || roadmap || ""].filter(Boolean).join("\n\n")}
-        className="mt-6"
-      />
     </div>
   );
 }

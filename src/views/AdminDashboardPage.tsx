@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
+import { bookCategories, bookLanguages } from "@/lib/books";
 
 type AdminFeedbackItem = {
   id: string;
@@ -19,6 +22,62 @@ type AdminFeedbackItem = {
   status: "open" | "in-review" | "resolved";
   adminReply?: string;
   createdAt: string;
+};
+
+type AdminBookItem = {
+  id: string;
+  sourceId?: string;
+  title: string;
+  authors: string[];
+  genres: string[];
+  languages: string[];
+  tags: string[];
+  summaries: string[];
+  coverUrl?: string;
+  textUrl?: string;
+  htmlUrl?: string;
+  epubUrl?: string;
+  pdfUrl?: string;
+  sourceUrl?: string;
+  fullText?: string;
+  estimatedPages?: string;
+  status?: "active" | "draft";
+};
+
+type BookFormState = {
+  title: string;
+  authors: string;
+  genres: string;
+  language: string;
+  tags: string;
+  description: string;
+  coverUrl: string;
+  textUrl: string;
+  htmlUrl: string;
+  epubUrl: string;
+  pdfUrl: string;
+  sourceUrl: string;
+  fullText: string;
+  estimatedPages: string;
+  status: "active" | "draft";
+};
+
+const emptyBookForm: BookFormState = {
+  title: "",
+  authors: "",
+  genres: "novels",
+  language: "en",
+  tags: "",
+  description: "",
+  coverUrl: "",
+  textUrl: "",
+  htmlUrl: "",
+  epubUrl: "",
+  pdfUrl: "",
+  sourceUrl: "",
+  fullText: "",
+  estimatedPages: "",
+  status: "active",
 };
 
 async function adminRequest<T>(url: string, init?: RequestInit) {
@@ -40,10 +99,14 @@ async function adminRequest<T>(url: string, init?: RequestInit) {
 
 export default function AdminDashboardPage() {
   const [items, setItems] = useState<AdminFeedbackItem[]>([]);
+  const [books, setBooks] = useState<AdminBookItem[]>([]);
+  const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
+  const [bookDrafts, setBookDrafts] = useState<Record<string, BookFormState>>({});
   const [filter, setFilter] = useState<"all" | AdminFeedbackItem["status"]>("all");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, AdminFeedbackItem["status"]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isBooksLoading, setIsBooksLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
 
   const filteredItems = useMemo(() => {
@@ -63,8 +126,22 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadBooks = async () => {
+    setIsBooksLoading(true);
+    try {
+      const payload = await adminRequest<{ books: AdminBookItem[] }>("/api/admin/books");
+      setBooks(payload.books);
+      setAccessError(null);
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Could not load admin books.");
+    } finally {
+      setIsBooksLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadItems();
+    void loadBooks();
   }, []);
 
   const handleUpdate = async (item: AdminFeedbackItem) => {
@@ -85,73 +162,267 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const toBookPayload = (form: BookFormState) => ({
+    title: form.title,
+    authors: form.authors,
+    genres: form.genres,
+    language: form.language,
+    tags: form.tags,
+    description: form.description,
+    coverUrl: form.coverUrl,
+    textUrl: form.textUrl,
+    htmlUrl: form.htmlUrl,
+    epubUrl: form.epubUrl,
+    pdfUrl: form.pdfUrl,
+    sourceUrl: form.sourceUrl,
+    fullText: form.fullText,
+    estimatedPages: form.estimatedPages,
+    status: form.status,
+  });
+
+  const bookToForm = (book: AdminBookItem): BookFormState => ({
+    title: book.title,
+    authors: book.authors.join(", "),
+    genres: book.genres.join(", "),
+    language: book.languages[0] || "en",
+    tags: book.tags.join(", "),
+    description: book.summaries[0] || "",
+    coverUrl: book.coverUrl || "",
+    textUrl: book.textUrl || "",
+    htmlUrl: book.htmlUrl || "",
+    epubUrl: book.epubUrl || "",
+    pdfUrl: book.pdfUrl || "",
+    sourceUrl: book.sourceUrl || "",
+    fullText: book.fullText || "",
+    estimatedPages: book.estimatedPages || "",
+    status: book.status || "active",
+  });
+
+  const handleCreateBook = async () => {
+    try {
+      await adminRequest("/api/admin/books", {
+        method: "POST",
+        body: JSON.stringify(toBookPayload(bookForm)),
+      });
+      toast.success("Book added");
+      setBookForm(emptyBookForm);
+      await loadBooks();
+    } catch (error) {
+      toast.error("Book create failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const handleUpdateBook = async (book: AdminBookItem) => {
+    const id = book.sourceId || book.id.replace("admin-", "");
+    const form = bookDrafts[book.id] || bookToForm(book);
+
+    try {
+      await adminRequest(`/api/admin/books/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(toBookPayload(form)),
+      });
+      toast.success("Book updated");
+      await loadBooks();
+    } catch (error) {
+      toast.error("Book update failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const handleDeleteBook = async (book: AdminBookItem) => {
+    const id = book.sourceId || book.id.replace("admin-", "");
+
+    try {
+      await adminRequest(`/api/admin/books/${id}`, { method: "DELETE" });
+      toast.success("Book deleted");
+      await loadBooks();
+    } catch (error) {
+      toast.error("Book delete failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const updateBookForm = (patch: Partial<BookFormState>) => setBookForm((current) => ({ ...current, ...patch }));
+  const updateBookDraft = (book: AdminBookItem, patch: Partial<BookFormState>) => {
+    setBookDrafts((current) => ({
+      ...current,
+      [book.id]: {
+        ...(current[book.id] || bookToForm(book)),
+        ...patch,
+      },
+    }));
+  };
+
   return (
     <AuthGate title="Admin login required" description="Login with an admin email to manage feedback and complaints.">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <PageHeader icon={ShieldCheck} title="Admin Dashboard" description="Receive, reply to, and resolve user feedback and complaints" />
-          <Select value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="in-review">In Review</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <PageHeader icon={ShieldCheck} title="Admin Dashboard" description="Manage feedback, complaints, and dynamic book library content" />
 
-        {isLoading ? (
-          <div className="glass-card p-8 text-center text-sm text-muted-foreground">
-            <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
-            Loading admin messages...
-          </div>
-        ) : accessError ? (
+        {accessError ? (
           <div className="glass-card p-8 text-center">
             <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
             <h3 className="mb-2 font-display text-lg font-semibold text-foreground">Admin access unavailable</h3>
             <p className="text-sm text-muted-foreground">{accessError}</p>
           </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="glass-card p-8 text-center text-sm text-muted-foreground">No messages found.</div>
         ) : (
-          <div className="space-y-4">
-            {filteredItems.map((item) => (
-              <article key={item.id} className="glass-card p-5">
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-normal text-muted-foreground">{item.category}</p>
-                    <h3 className="font-display text-lg font-semibold text-foreground">{item.subject}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{item.name} - {item.email}</p>
-                  </div>
-                  <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{item.status}</span>
+          <Tabs defaultValue="feedback" className="mt-6">
+            <TabsList className="mb-6 grid w-full grid-cols-2">
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="books">Books</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="feedback">
+              <div className="mb-4 flex justify-end">
+                <Select value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in-review">In Review</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {isLoading ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+                  <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+                  Loading admin messages...
                 </div>
-                <p className="mb-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.message}</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-start">
-                  <Select
-                    value={statusDrafts[item.id] ?? item.status}
-                    onValueChange={(value) => setStatusDrafts((current) => ({ ...current, [item.id]: value as AdminFeedbackItem["status"] }))}
-                  >
+              ) : filteredItems.length === 0 ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">No messages found.</div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredItems.map((item) => (
+                    <article key={item.id} className="glass-card p-5">
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-normal text-muted-foreground">{item.category}</p>
+                          <h3 className="font-display text-lg font-semibold text-foreground">{item.subject}</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">{item.name} - {item.email}</p>
+                        </div>
+                        <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{item.status}</span>
+                      </div>
+                      <p className="mb-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.message}</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-start">
+                        <Select
+                          value={statusDrafts[item.id] ?? item.status}
+                          onValueChange={(value) => setStatusDrafts((current) => ({ ...current, [item.id]: value as AdminFeedbackItem["status"] }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open">Open</SelectItem>
+                            <SelectItem value="in-review">In Review</SelectItem>
+                            <SelectItem value="resolved">Resolved</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Textarea
+                          value={replyDrafts[item.id] ?? item.adminReply ?? ""}
+                          onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                          placeholder="Write admin reply..."
+                          className="min-h-[96px]"
+                        />
+                        <Button className="gradient-primary border-0" onClick={() => handleUpdate(item)}>
+                          <CheckCircle2 className="mr-2 h-4 w-4" /> Update
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="books">
+              <div className="glass-card p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  <h2 className="font-display text-lg font-semibold text-foreground">Add New Book</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Input value={bookForm.title} onChange={(event) => updateBookForm({ title: event.target.value })} placeholder="Book title" />
+                  <Input value={bookForm.authors} onChange={(event) => updateBookForm({ authors: event.target.value })} placeholder="Authors, comma separated" />
+                  <Select value={bookForm.genres.split(",")[0]?.trim() || "novels"} onValueChange={(value) => updateBookForm({ genres: value })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="in-review">In Review</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
+                      {bookCategories.filter((item) => item.id !== "all").map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Textarea
-                    value={replyDrafts[item.id] ?? item.adminReply ?? ""}
-                    onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                    placeholder="Write admin reply..."
-                    className="min-h-[96px]"
-                  />
-                  <Button className="gradient-primary border-0" onClick={() => handleUpdate(item)}>
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Update
-                  </Button>
+                  <Select value={bookForm.language} onValueChange={(value) => updateBookForm({ language: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {bookLanguages.filter((item) => item.id !== "all").map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input value={bookForm.tags} onChange={(event) => updateBookForm({ tags: event.target.value })} placeholder="Tags, comma separated" />
+                  <Input value={bookForm.estimatedPages} onChange={(event) => updateBookForm({ estimatedPages: event.target.value })} placeholder="Pages e.g. 120, 3000, Full text" />
+                  <Input value={bookForm.coverUrl} onChange={(event) => updateBookForm({ coverUrl: event.target.value })} placeholder="Cover image URL" />
+                  <Input value={bookForm.sourceUrl} onChange={(event) => updateBookForm({ sourceUrl: event.target.value })} placeholder="Source / metadata URL" />
+                  <Input value={bookForm.textUrl} onChange={(event) => updateBookForm({ textUrl: event.target.value })} placeholder="Plain text URL for reader" />
+                  <Input value={bookForm.pdfUrl} onChange={(event) => updateBookForm({ pdfUrl: event.target.value })} placeholder="PDF URL for download" />
+                  <Input value={bookForm.epubUrl} onChange={(event) => updateBookForm({ epubUrl: event.target.value })} placeholder="EPUB / offline book URL" />
+                  <Select value={bookForm.status} onValueChange={(value) => updateBookForm({ status: value as BookFormState["status"] })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </article>
-            ))}
-          </div>
+                <Textarea value={bookForm.description} onChange={(event) => updateBookForm({ description: event.target.value })} placeholder="Description / summary" className="mt-3 min-h-[90px]" />
+                <Textarea value={bookForm.fullText} onChange={(event) => updateBookForm({ fullText: event.target.value })} placeholder="Optional full text for online reader and PDF generation" className="mt-3 min-h-[130px]" />
+                <Button className="gradient-primary mt-4 border-0" onClick={handleCreateBook}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Book
+                </Button>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {isBooksLoading ? (
+                  <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+                    <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+                    Loading books...
+                  </div>
+                ) : books.length === 0 ? (
+                  <div className="glass-card p-8 text-center text-sm text-muted-foreground">No admin books yet.</div>
+                ) : (
+                  books.map((book) => {
+                    const draft = bookDrafts[book.id] || bookToForm(book);
+                    return (
+                      <article key={book.id} className="glass-card p-5">
+                        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-display text-lg font-semibold text-foreground">{book.title}</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">{book.authors.join(", ")} - {book.languages[0]} - {book.status}</p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteBook(book)}>
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <Input value={draft.title} onChange={(event) => updateBookDraft(book, { title: event.target.value })} />
+                          <Input value={draft.authors} onChange={(event) => updateBookDraft(book, { authors: event.target.value })} />
+                          <Input value={draft.genres} onChange={(event) => updateBookDraft(book, { genres: event.target.value })} />
+                          <Input value={draft.tags} onChange={(event) => updateBookDraft(book, { tags: event.target.value })} />
+                          <Input value={draft.language} onChange={(event) => updateBookDraft(book, { language: event.target.value })} />
+                          <Input value={draft.estimatedPages} onChange={(event) => updateBookDraft(book, { estimatedPages: event.target.value })} />
+                          <Input value={draft.coverUrl} onChange={(event) => updateBookDraft(book, { coverUrl: event.target.value })} />
+                          <Input value={draft.sourceUrl} onChange={(event) => updateBookDraft(book, { sourceUrl: event.target.value })} />
+                          <Input value={draft.textUrl} onChange={(event) => updateBookDraft(book, { textUrl: event.target.value })} />
+                          <Input value={draft.pdfUrl} onChange={(event) => updateBookDraft(book, { pdfUrl: event.target.value })} />
+                        </div>
+                        <Textarea value={draft.description} onChange={(event) => updateBookDraft(book, { description: event.target.value })} className="mt-3 min-h-[90px]" />
+                        <Button className="mt-3" variant="outline" onClick={() => handleUpdateBook(book)}>
+                          <CheckCircle2 className="mr-2 h-4 w-4" /> Save Metadata
+                        </Button>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </AuthGate>

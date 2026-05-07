@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fallbackBooks, GutendexBook, mapGutendexBook } from "@/lib/books";
+import { fallbackBooks, GutendexBook, mapGutendexBook, parseBookId } from "@/lib/books";
+import { getCustomBookById } from "@/lib/server/books";
 
 const GUTENDEX_API = "https://gutendex.com/books/";
-const MAX_READER_CHARS = 1_500_000;
+const MAX_READER_CHARS = 1_800_000;
 
 function cleanBookText(text: string) {
   return text
@@ -12,10 +13,20 @@ function cleanBookText(text: string) {
 }
 
 async function getBook(id: string) {
-  const fallback = fallbackBooks.find((book) => String(book.id) === id);
+  const parsed = parseBookId(id);
+
+  if (parsed.source === "admin") {
+    try {
+      return await getCustomBookById(parsed.sourceId);
+    } catch {
+      return null;
+    }
+  }
+
+  const fallback = fallbackBooks.find((book) => book.sourceId === parsed.sourceId || book.id === id);
 
   try {
-    const response = await fetch(`${GUTENDEX_API}?ids=${encodeURIComponent(id)}`, {
+    const response = await fetch(`${GUTENDEX_API}?ids=${encodeURIComponent(parsed.sourceId)}`, {
       next: { revalidate: 60 * 60 * 12 },
       headers: { Accept: "application/json" },
     });
@@ -32,10 +43,23 @@ async function getBook(id: string) {
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   const book = await getBook(params.id);
 
-  if (!book?.textUrl) {
+  if (!book) {
+    return NextResponse.json({ error: "Book not found." }, { status: 404 });
+  }
+
+  if (book.fullText?.trim()) {
+    return NextResponse.json({
+      book,
+      text: cleanBookText(book.fullText),
+      truncated: false,
+      sourceUrl: book.sourceUrl,
+    });
+  }
+
+  if (!book.textUrl) {
     return NextResponse.json(
       {
-        error: "This title does not expose a readable plain-text source. Open the Project Gutenberg reader instead.",
+        error: "This title does not expose a readable plain-text source. Open the source reader or download the original file instead.",
         book,
       },
       { status: 404 },
@@ -54,7 +78,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     const rawText = cleanBookText(await response.text());
     const truncated = rawText.length > MAX_READER_CHARS;
     const text = truncated
-      ? `${rawText.slice(0, MAX_READER_CHARS)}\n\n[Reader note: this is a very large book. Use the source/EPUB download for the complete original file.]`
+      ? `${rawText.slice(0, MAX_READER_CHARS)}\n\n[Reader note: this is a very large book. Use the offline book download for the complete original file.]`
       : rawText;
 
     return NextResponse.json({

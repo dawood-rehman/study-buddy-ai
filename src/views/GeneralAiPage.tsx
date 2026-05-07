@@ -6,7 +6,6 @@ import { FileUpload } from "@/components/FileUpload";
 import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { PageHeader } from "@/components/PageHeader";
-import { PracticeTestPanel } from "@/components/PracticeTestPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
@@ -116,12 +115,6 @@ export default function GeneralAiPage() {
         </div>
       </div>
 
-      <PracticeTestPanel
-        language={language}
-        sourceTitle="General AI"
-        defaultContent={[fileContext, response || ""].filter(Boolean).join("\n\n")}
-        className="mt-6"
-      />
     </div>
   );
 }

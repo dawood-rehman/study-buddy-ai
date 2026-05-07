@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { jsPDF } from "jspdf";
-import { fallbackBooks, fileSafeName, getBookDescription, GutendexBook, mapGutendexBook } from "@/lib/books";
+import { fallbackBooks, fileSafeName, getBookDescription, GutendexBook, mapGutendexBook, parseBookId } from "@/lib/books";
+import { getCustomBookById } from "@/lib/server/books";
 
 export const runtime = "nodejs";
 
 const GUTENDEX_API = "https://gutendex.com/books/";
-const MAX_PDF_CHARS = 1_800_000;
+const MAX_PDF_CHARS = 2_000_000;
 
 function cleanBookText(text: string) {
   return text
@@ -16,10 +17,20 @@ function cleanBookText(text: string) {
 }
 
 async function getBook(id: string) {
-  const fallback = fallbackBooks.find((book) => String(book.id) === id);
+  const parsed = parseBookId(id);
+
+  if (parsed.source === "admin") {
+    try {
+      return await getCustomBookById(parsed.sourceId);
+    } catch {
+      return null;
+    }
+  }
+
+  const fallback = fallbackBooks.find((book) => book.sourceId === parsed.sourceId || book.id === id);
 
   try {
-    const response = await fetch(`${GUTENDEX_API}?ids=${encodeURIComponent(id)}`, {
+    const response = await fetch(`${GUTENDEX_API}?ids=${encodeURIComponent(parsed.sourceId)}`, {
       next: { revalidate: 60 * 60 * 12 },
       headers: { Accept: "application/json" },
     });
@@ -46,12 +57,9 @@ function addWrappedText(doc: jsPDF, text: string, state: { y: number }, options?
 
   const paragraphs = text.split(/\n{2,}/);
   for (const paragraph of paragraphs) {
-    const lines = doc.splitTextToSize(paragraph.replace(/\s+/g, " ").trim(), maxWidth);
-
-    if (!lines.length) {
-      state.y += lineHeight;
-      continue;
-    }
+    const normalized = paragraph.replace(/\s+/g, " ").trim();
+    if (!normalized) continue;
+    const lines = doc.splitTextToSize(normalized, maxWidth);
 
     for (const line of lines) {
       if (state.y + lineHeight > pageHeight - margin) {
@@ -67,6 +75,19 @@ function addWrappedText(doc: jsPDF, text: string, state: { y: number }, options?
   }
 }
 
+async function fetchText(bookTextUrl?: string) {
+  if (!bookTextUrl) return "";
+  const sourceResponse = await fetch(bookTextUrl, {
+    next: { revalidate: 60 * 60 * 24 },
+  });
+
+  if (!sourceResponse.ok) {
+    throw new Error(`Book source returned ${sourceResponse.status}.`);
+  }
+
+  return cleanBookText(await sourceResponse.text());
+}
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const book = await getBook(params.id);
   const format = request.nextUrl.searchParams.get("format") || "pdf";
@@ -76,27 +97,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   if (format === "original") {
-    const originalUrl = book.epubUrl || book.textUrl || book.htmlUrl || book.sourceUrl;
+    const originalUrl = book.pdfUrl || book.epubUrl || book.textUrl || book.htmlUrl || book.sourceUrl;
+    if (!originalUrl) return new Response("No original download source is available for this book.", { status: 404 });
     return Response.redirect(originalUrl, 302);
   }
 
-  if (!book.textUrl) {
-    return new Response("This book does not expose a plain text source for PDF generation. Download the original file instead.", { status: 404 });
+  if (book.pdfUrl && !book.fullText && !book.textUrl) {
+    return Response.redirect(book.pdfUrl, 302);
+  }
+
+  if (!book.fullText && !book.textUrl) {
+    return new Response("This book does not expose text for PDF generation. Download the original file instead.", { status: 404 });
   }
 
   try {
-    const sourceResponse = await fetch(book.textUrl, {
-      next: { revalidate: 60 * 60 * 24 },
-    });
-
-    if (!sourceResponse.ok) {
-      throw new Error(`Book source returned ${sourceResponse.status}.`);
-    }
-
-    const rawText = cleanBookText(await sourceResponse.text());
+    const rawText = book.fullText ? cleanBookText(book.fullText) : await fetchText(book.textUrl);
     const truncated = rawText.length > MAX_PDF_CHARS;
     const text = truncated
-      ? `${rawText.slice(0, MAX_PDF_CHARS)}\n\nReader note: this title is very large. The complete original offline file is available from the Download Original button or Project Gutenberg source page.`
+      ? `${rawText.slice(0, MAX_PDF_CHARS)}\n\nReader note: this title is very large. The complete original offline file is available from the Offline Book button or source page.`
       : rawText;
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -105,7 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     doc.setTextColor(18, 18, 18);
     addWrappedText(doc, book.title, state, { fontSize: 20, bold: true });
     addWrappedText(doc, `by ${book.authors.join(", ")}`, state, { fontSize: 12, italic: true });
-    addWrappedText(doc, `Source: ${book.sourceUrl}`, state, { fontSize: 9 });
+    if (book.sourceUrl) addWrappedText(doc, `Source: ${book.sourceUrl}`, state, { fontSize: 9 });
     addWrappedText(doc, `About: ${getBookDescription(book)}`, state, { fontSize: 10 });
     addWrappedText(doc, "Full Book Text", state, { fontSize: 14, bold: true });
     addWrappedText(doc, text, state, { fontSize: 10 });

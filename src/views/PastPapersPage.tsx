@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
 import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
-import { PracticeTestPanel } from "@/components/PracticeTestPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
@@ -95,12 +94,6 @@ export default function PastPapersPage() {
         )}
       </div>
 
-      <PracticeTestPanel
-        language={language}
-        sourceTitle="Past Paper Solver"
-        defaultContent={[paperText, solution || ""].filter(Boolean).join("\n\n")}
-        className="mt-6"
-      />
     </div>
   );
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookMarked, BookOpen, BookmarkPlus, Download, ExternalLink, FileDown, Loader2, Search, Star } from "lucide-react";
+import { Bot, BookMarked, BookOpen, BookmarkPlus, Download, ExternalLink, FileDown, Loader2, Search, Sparkles, Star } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { GeneratedContent } from "@/components/GeneratedContent";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { BookSearchResponse, LibraryBook, bookCategories, getBookDescription } from "@/lib/books";
+import { BookSearchResponse, LibraryBook, bookCategories, bookLanguages, getBookDescription } from "@/lib/books";
+import { getErrorMessage, requestAi } from "@/lib/ai-client";
 import { addLibraryItem } from "@/lib/library-store";
 
 type ReaderState = "idle" | "loading" | "ready" | "error";
@@ -25,12 +28,17 @@ function subjectPreview(book: LibraryBook) {
 export default function BooksPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [language, setLanguage] = useState("all");
   const [page, setPage] = useState(1);
   const [books, setBooks] = useState<LibraryBook[]>([]);
   const [activeBook, setActiveBook] = useState<LibraryBook | null>(null);
   const [readerText, setReaderText] = useState("");
   const [readerState, setReaderState] = useState<ReaderState>("idle");
   const [readerTruncated, setReaderTruncated] = useState(false);
+  const [readerSize, setReaderSize] = useState("comfortable");
+  const [assistantPrompt, setAssistantPrompt] = useState("");
+  const [assistantReply, setAssistantReply] = useState<string | null>(null);
+  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [nextPage, setNextPage] = useState<number | null>(null);
   const [previousPage, setPreviousPage] = useState<number | null>(null);
@@ -38,7 +46,15 @@ export default function BooksPage() {
   const readerRef = useRef<HTMLDivElement | null>(null);
 
   const categoryInfo = useMemo(() => bookCategories.find((item) => item.id === category) || bookCategories[0], [category]);
+  const languageInfo = useMemo(() => bookLanguages.find((item) => item.id === language) || bookLanguages[0], [language]);
   const popularBooks = useMemo(() => books.slice(0, 4), [books]);
+  const readerBlocks = useMemo(() => {
+    return readerText
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .slice(0, 1200);
+  }, [readerText]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,6 +63,7 @@ export default function BooksPage() {
       try {
         const params = new URLSearchParams({
           category,
+          language,
           page: String(page),
         });
 
@@ -82,7 +99,7 @@ export default function BooksPage() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [category, page, query]);
+  }, [category, language, page, query]);
 
   const openReader = async (book: LibraryBook) => {
     setActiveBook(book);
@@ -143,12 +160,65 @@ export default function BooksPage() {
     window.location.href = `/api/books/${book.id}/download?format=original`;
   };
 
+  const handleAssistant = async () => {
+    if (!assistantPrompt.trim()) {
+      toast.error("Tell the assistant your interest, mood, goal, or requested book.");
+      return;
+    }
+
+    setIsAssistantLoading(true);
+    try {
+      const params = new URLSearchParams({
+        q: assistantPrompt,
+        category: "all",
+        language: "all",
+        page: "1",
+      });
+      const response = await fetch(`/api/books?${params.toString()}`);
+      const data = (await response.json()) as BookSearchResponse;
+      const matches = data.books.slice(0, 12).map((book) => ({
+        title: book.title,
+        authors: book.authors,
+        genres: book.genres,
+        language: book.languageLabel,
+        tags: book.tags,
+        available: Boolean(book.textUrl || book.fullText || book.pdfUrl || book.epubUrl || book.htmlUrl),
+        source: book.source,
+      }));
+
+      const result = await requestAi({
+        task: "study",
+        language: "english",
+        prompt: [
+          "Act as an AI book librarian for Study Buddy AI.",
+          "Recommend books based on the user's mood, goal, learning interest, or requested title.",
+          "Use the available search matches as the availability source. If the exact requested book is not present, say it is not currently available and suggest close alternatives.",
+          "Return concise sections: Best Matches, Why These Fit, Available/Not Available, Search Suggestions.",
+          `User request: ${assistantPrompt}`,
+        ].join("\n"),
+        context: JSON.stringify({ currentCategory: categoryInfo.label, currentLanguage: languageInfo.label, availableMatches: matches }, null, 2),
+        options: { mode: "book-assistant", source: data.source },
+      });
+
+      setAssistantReply(result.content);
+      toast.success("Book recommendations ready", {
+        description: `Model: ${result.model}`,
+      });
+    } catch (error) {
+      toast.error("Book assistant failed", {
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setIsAssistantLoading(false);
+    }
+  };
+
   return (
     <AuthGate title="Login required for Books" description="Login to search, save, read online, and download offline book resources.">
       <div className="mx-auto w-full max-w-7xl">
         <PageHeader icon={BookMarked} title="Books" description="A public-domain online/offline library powered by Project Gutenberg sources" />
 
-        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_230px_220px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -183,17 +253,57 @@ export default function BooksPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={language}
+            onValueChange={(value) => {
+              setLanguage(value);
+              setPage(1);
+              setActiveBook(null);
+              setReaderState("idle");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {bookLanguages.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="mb-6 rounded-md border border-border bg-background p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-display text-base font-semibold text-foreground">{categoryInfo.label}</h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{categoryInfo.description}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{categoryInfo.description} - {languageInfo.label}</p>
             </div>
             <p className="text-xs font-medium text-muted-foreground">{sourceLabel}</p>
           </div>
         </div>
+
+        <section className="glass-card mb-6 p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" />
+            <h2 className="font-display text-lg font-semibold text-foreground">AI Book Assistant</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <Textarea
+              value={assistantPrompt}
+              onChange={(event) => setAssistantPrompt(event.target.value)}
+              placeholder="Example: I want motivational books, suggest books for learning programming, I feel depressed recommend something uplifting, is Pride and Prejudice available?"
+              className="min-h-[92px]"
+            />
+            <Button className="gradient-primary border-0 lg:self-end" onClick={handleAssistant} disabled={isAssistantLoading}>
+              {isAssistantLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Ask Librarian
+            </Button>
+          </div>
+          {assistantReply ? <GeneratedContent content={assistantReply} title="AI Book Recommendations" type="book" className="mt-4" /> : null}
+        </section>
 
         <section className="mb-6">
           <div className="mb-3 flex items-center gap-2">
@@ -234,7 +344,11 @@ export default function BooksPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {books.map((book) => (
+                {books.length === 0 ? (
+                  <div className="glass-card p-8 text-center text-sm leading-6 text-muted-foreground md:col-span-2">
+                    No exact matches found for this filter. Urdu and Roman Urdu filters only show books with correct language labels. Admin can add more books from the Admin Dashboard.
+                  </div>
+                ) : books.map((book) => (
                   <article key={book.id} className="glass-card overflow-hidden">
                     <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-4 p-4">
                       <div className="aspect-[2/3] overflow-hidden rounded-md border border-border bg-secondary">
@@ -252,8 +366,9 @@ export default function BooksPage() {
                             {book.categoryLabel}
                           </span>
                           <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                            {book.estimatedPages || "Full book"}
+                            {book.languageLabel}
                           </span>
+                          <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">{book.estimatedPages || "Full book"}</span>
                         </div>
                         <h3 className="line-clamp-2 font-display font-semibold text-foreground">{book.title}</h3>
                         <p className="mt-1 line-clamp-1 text-sm font-medium text-primary">by {authorLine(book)}</p>
@@ -316,9 +431,19 @@ export default function BooksPage() {
                       <ExternalLink className="mr-2 h-4 w-4" /> Source
                     </a>
                   </Button>
+                  <Select value={readerSize} onValueChange={setReaderSize}>
+                    <SelectTrigger className="h-9 w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compact">Compact</SelectItem>
+                      <SelectItem value="comfortable">Comfortable</SelectItem>
+                      <SelectItem value="large">Large Text</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="max-h-[660px] overflow-y-auto rounded-md border border-border bg-background p-4">
+                <div className="max-h-[680px] overflow-y-auto rounded-md border border-border bg-[#fbfaf7] p-5 shadow-inner">
                   {readerState === "loading" ? (
                     <div className="flex min-h-[360px] items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -330,7 +455,24 @@ export default function BooksPage() {
                           This is a very large book, so the in-app reader shows a large readable section. Use Offline Book for the complete original file.
                         </div>
                       ) : null}
-                      <pre className="whitespace-pre-wrap break-words font-serif text-sm leading-7 text-foreground">{readerText}</pre>
+                      <article
+                        className={`mx-auto max-w-prose font-serif text-[#1f2933] ${
+                          readerSize === "compact" ? "text-sm leading-7" : readerSize === "large" ? "text-lg leading-9" : "text-base leading-8"
+                        }`}
+                      >
+                        {readerBlocks.map((block, index) => {
+                          const isHeading = block.length < 90 && (block === block.toUpperCase() || /^(chapter|book|part)\b/i.test(block));
+                          return isHeading ? (
+                            <h3 key={`${activeBook.id}-${index}`} className="mb-4 mt-7 font-sans text-base font-semibold tracking-normal text-foreground">
+                              {block}
+                            </h3>
+                          ) : (
+                            <p key={`${activeBook.id}-${index}`} className="mb-5">
+                              {block}
+                            </p>
+                          );
+                        })}
+                      </article>
                     </>
                   ) : readerState === "error" ? (
                     <div className="text-sm leading-6 text-muted-foreground">
