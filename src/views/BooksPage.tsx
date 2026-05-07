@@ -218,6 +218,12 @@ export default function BooksPage() {
       <div className="mx-auto w-full max-w-7xl">
         <PageHeader icon={BookMarked} title="Books" description="A public-domain online/offline library powered by Project Gutenberg sources" />
 
+        {isSearching ? (
+          <div className="mb-4 h-1 overflow-hidden rounded-full bg-secondary">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
+          </div>
+        ) : null}
+
         <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_230px_220px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -328,12 +334,30 @@ export default function BooksPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display font-semibold text-foreground">Library Results</h2>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={!previousPage || isSearching} onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                  Previous
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!previousPage || isSearching}
+                  onClick={() => {
+                    setActiveBook(null);
+                    setReaderState("idle");
+                    setPage((current) => Math.max(1, current - 1));
+                  }}
+                >
+                  Previous 10
                 </Button>
-                <span className="min-w-12 text-center text-xs font-medium text-muted-foreground">Page {page}</span>
-                <Button variant="outline" size="sm" disabled={!nextPage || isSearching} onClick={() => setPage((current) => current + 1)}>
-                  Next
+                <span className="min-w-20 text-center text-xs font-medium text-muted-foreground">Page {page} - 10 books</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!nextPage || isSearching}
+                  onClick={() => {
+                    setActiveBook(null);
+                    setReaderState("idle");
+                    setPage((current) => current + 1);
+                  }}
+                >
+                  Next 10
                 </Button>
               </div>
             </div>

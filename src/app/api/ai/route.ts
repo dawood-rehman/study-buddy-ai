@@ -27,6 +27,13 @@ type OpenRouterPayload = {
   } | string;
 };
 
+function getMaxTokens(task: z.infer<typeof aiRequestSchema>["task"], options?: Record<string, unknown>) {
+  if (options?.mode === "book-assistant" || options?.mode === "earth-map-explorer") return 750;
+  if (task === "summary" || task === "grammar") return 900;
+  if (task === "past-paper" || task === "resume" || task === "counseling") return 1200;
+  return 850;
+}
+
 type AiErrorCode =
   | "OPENROUTER_API_KEY_MISSING"
   | "OPENROUTER_API_KEY_INVALID"
@@ -226,6 +233,7 @@ export async function POST(request: NextRequest) {
 
     const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(32_000),
       headers: {
         Authorization: `Bearer ${apiKeyOrResponse}`,
         "Content-Type": "application/json",
@@ -238,8 +246,9 @@ export async function POST(request: NextRequest) {
         provider: {
           allow_fallbacks: true,
         },
-        temperature: 0.35,
-        max_tokens: 1400,
+        temperature: 0.25,
+        top_p: 0.9,
+        max_tokens: getMaxTokens(task, options),
       }),
     });
 
@@ -282,6 +291,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createApiError("INVALID_JSON", "Invalid request JSON.", 400);
+    }
+
+    if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      return createApiError(
+        "OPENROUTER_NETWORK_ERROR",
+        "AI request timed out after 32 seconds. Try a shorter prompt or retry in a moment.",
+        504,
+        error.message,
+      );
     }
 
     if (error instanceof TypeError) {

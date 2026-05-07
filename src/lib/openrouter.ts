@@ -1,27 +1,22 @@
 export const OPENROUTER_MODEL_FALLBACKS = {
   general: [
-    "openai/gpt-oss-120b:free",
-    "z-ai/glm-4.5-air:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
     "openai/gpt-oss-20b:free",
+    "z-ai/glm-4.5-air:free",
+    "openai/gpt-oss-120b:free",
   ],
   computer: [
     "qwen/qwen3-coder:free",
+    "openai/gpt-oss-20b:free",
     "baidu/cobuddy:free",
-    "poolside/laguna-m.1:free",
-    "poolside/laguna-xs.2:free",
-    "openai/gpt-oss-120b:free",
   ],
   deep: [
     "qwen/qwen3-next-80b-a3b-instruct:free",
-    "openrouter/owl-alpha",
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "openai/gpt-oss-120b:free",
     "z-ai/glm-4.5-air:free",
   ],
 } as const;
 
-const OPENROUTER_MAX_FALLBACK_MODELS = 3;
+const OPENROUTER_MAX_FALLBACK_MODELS = 2;
 
 export const OPENROUTER_MODELS = {
   general: OPENROUTER_MODEL_FALLBACKS.general[0],
@@ -69,12 +64,12 @@ const languageInstruction: Record<AiLanguage, string> = {
 };
 
 const taskInstruction: Record<AiTask, string> = {
-  study: "Explain the topic like a patient tutor. Use examples, steps, and a short recap.",
-  quiz: "Create practice questions with answers. Include difficulty tags and a compact answer key.",
-  summary: "Create a clean study summary with headings, key points, and revision notes.",
-  "past-paper": "Solve the paper step by step. State assumptions when a question is incomplete.",
-  grammar: "Teach the grammar concept with examples, corrections, and a short practice exercise.",
-  counseling: "Create a practical study plan with priorities, weekly routine, revision strategy, and exam tips.",
+  study: "Answer the exact study request with clear headings, essential examples, and a short recap.",
+  quiz: "Create or grade practice questions exactly as requested. Include compact answers or marks only when needed.",
+  summary: "Create a focused study summary with headings, key points, and revision notes.",
+  "past-paper": "Solve the paper step by step, but keep reasoning concise. State assumptions when a question is incomplete.",
+  grammar: "Teach the requested grammar concept with examples, corrections, and a short practice exercise.",
+  counseling: "Create a practical plan with priorities, routine, improvement strategy, and next steps.",
   resume: "Improve the resume content for ATS systems using concise, measurable, professional wording.",
 };
 
@@ -141,6 +136,9 @@ export function buildOpenRouterMessages({
       role: "system" as const,
       content: [
         "You are Study Buddy AI, a careful educational assistant for students.",
+        "Follow the user's prompt and intent strictly.",
+        "Do not add unrelated sections or unnecessary background.",
+        "Prefer concise, high-signal answers that finish quickly.",
         "Be accurate, structured, and honest when information is missing.",
         "Avoid unsafe shortcuts and do not invent sources or facts.",
         languageInstruction[language],

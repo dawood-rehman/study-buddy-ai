@@ -4,6 +4,8 @@ export interface BookCategory {
   description: string;
   topic?: string;
   search?: string;
+  include?: string[];
+  exclude?: string[];
 }
 
 export interface BookLanguage {
@@ -95,18 +97,22 @@ export interface AdminBookPayload {
   status?: "active" | "draft";
 }
 
+export const BOOKS_PER_PAGE = 10;
+
 export const bookCategories: BookCategory[] = [
   { id: "all", label: "All Genres", description: "Large public-domain library across fiction, learning, history, poetry, drama, and more" },
-  { id: "study", label: "Study", description: "Education, reference, science, learning, and exam-friendly reading", topic: "education" },
-  { id: "programming", label: "Programming", description: "Computer science, programming history, algorithms, and technical learning", search: "programming computer science" },
-  { id: "motivation", label: "Motivation", description: "Self-improvement, discipline, character, purpose, and uplifting classics", search: "self help conduct life success" },
-  { id: "novels", label: "Novels", description: "Classic fiction and long-form literature", topic: "fiction" },
+  { id: "study", label: "Study", description: "Education, reference, science, learning, and exam-friendly reading", search: "education science textbook mathematics physics biology psychology" },
+  { id: "programming", label: "Programming", description: "Computer science, programming history, algorithms, and technical learning", search: "computer programming software algorithms data processing", include: ["computer", "programming", "software", "algorithm", "data processing", "electronics", "technology"] },
+  { id: "motivation", label: "Motivation", description: "Self-improvement, discipline, character, purpose, and uplifting classics", search: "success self help conduct life character happiness", include: ["success", "self-help", "conduct of life", "character", "happiness", "ethics", "inspiration"] },
+  { id: "novels", label: "Novels", description: "Classic fiction and long-form literature", topic: "fiction", include: ["fiction", "novel"] },
   { id: "classics", label: "Classics", description: "Widely read public-domain classics", search: "classic literature" },
-  { id: "poetry", label: "Poems", description: "Poetry collections, verse, and spoken rhythm practice", topic: "poetry" },
-  { id: "short-stories", label: "Short Stories", description: "Short fiction for quick reading sessions", topic: "short stories" },
-  { id: "kids", label: "Kids", description: "Children's stories and simple literature", topic: "children" },
-  { id: "comics", label: "Comics", description: "Comics, illustrated stories, and graphic-style public-domain works", topic: "comics" },
-  { id: "drama", label: "Drama", description: "Plays, theatre, dialogue, and stage writing", topic: "drama" },
+  { id: "urdu-literature", label: "Urdu Literature", description: "Admin-curated Urdu literary books, fiction, poetry, and essays", search: "urdu literature" },
+  { id: "english-literature", label: "English Literature", description: "English literary classics, essays, novels, poetry, and drama", search: "english literature", include: ["english literature", "literature", "fiction", "poetry", "drama"] },
+  { id: "poetry", label: "Poems / Shayari", description: "Poetry, verse, shayari, ghazal, and literary collections", topic: "poetry", include: ["poetry", "poems", "verse", "sonnets", "ballads", "songs", "shayari", "ghazal"], exclude: ["fiction"] },
+  { id: "short-stories", label: "Short Stories", description: "Genuine short story collections and short fiction", search: "short stories short fiction", include: ["short stories", "short story", "short fiction", "stories"], exclude: ["novel", "long fiction"] },
+  { id: "kids", label: "Kids", description: "Children's stories, fairy tales, school reading, and simple literature", topic: "children", include: ["children", "juvenile", "fairy tales", "nursery", "school"], exclude: ["adult"] },
+  { id: "comics", label: "Comics & Fantasy", description: "Comics, illustrated stories, fantasy worlds, heroic adventures, and public-domain inspirations", search: "comics fantasy magic adventure illustrated fairy tales", include: ["comic", "comics", "illustrated", "fantasy", "magic", "adventure", "fairy"], exclude: ["treatise"] },
+  { id: "drama", label: "Drama", description: "Authentic drama literature, plays, theatre, and stage writing from different regions", topic: "drama", include: ["drama", "plays", "theater", "theatre", "tragedy", "comedy", "stage"], exclude: ["novel"] },
   { id: "film", label: "Film & Cinema", description: "Movie, theatre, and cinema-related reading", topic: "motion pictures" },
   { id: "action", label: "Action", description: "Adventure, travel, quests, and fast-paced classics", topic: "adventure" },
   { id: "suspense", label: "Suspense", description: "Mystery, detective, crime, and suspense fiction", topic: "mystery" },
@@ -114,7 +120,13 @@ export const bookCategories: BookCategory[] = [
   { id: "adult", label: "Adult / Mature", description: "Mature classic literature and serious themes", topic: "psychological fiction" },
   { id: "country-region", label: "Country / Region", description: "Travel, culture, country histories, and regional writing", topic: "travel" },
   { id: "biography", label: "Biography", description: "Life stories, memoirs, leadership, and historical figures", topic: "biography" },
-  { id: "history", label: "History", description: "World history, country histories, war, politics, and civilization", topic: "history" },
+  { id: "history", label: "History", description: "World, Islamic, political, ancient, war, country, and civilization history", search: "world history islamic political ancient civilization war country history", include: ["history", "civilization", "war", "political", "ancient", "islam", "country"] },
+  { id: "sports", label: "Sports", description: "Sports, games, athletics, cricket, football, and physical culture", search: "sports games athletics cricket football baseball physical culture", include: ["sports", "games", "athletics", "cricket", "football", "baseball", "tennis", "physical culture"] },
+  { id: "countries", label: "Country Books", description: "Books about Pakistan, India, Germany, Saudi Arabia, Iran, USA, UK, UAE, China, Europe, Italy, Syria, Jordan, Palestine, and more", search: "Pakistan India Germany Arabia Iran America Britain China Europe Italy Syria Jordan Palestine travel history culture politics geography", include: ["pakistan", "india", "germany", "arabia", "iran", "america", "united states", "britain", "england", "china", "europe", "italy", "syria", "jordan", "palestine", "travel", "geography", "culture"] },
+  { id: "biology", label: "Biology", description: "Biology, life science, nature, botany, zoology, and anatomy", topic: "biology", include: ["biology", "botany", "zoology", "anatomy", "life", "natural history"] },
+  { id: "physics", label: "Physics", description: "Physics, astronomy, electricity, mechanics, and science learning", topic: "physics", include: ["physics", "astronomy", "electricity", "mechanics", "science"] },
+  { id: "mathematics", label: "Mathematics", description: "Math, arithmetic, algebra, geometry, and problem solving", topic: "mathematics", include: ["mathematics", "algebra", "geometry", "arithmetic", "calculus"] },
+  { id: "psychology", label: "Psychology", description: "Psychology, mind, behavior, education, and mental wellbeing", topic: "psychology", include: ["psychology", "mind", "behavior", "mental", "education"] },
   { id: "science", label: "Science", description: "Science, nature, astronomy, biology, and discovery", topic: "science" },
   { id: "philosophy", label: "Philosophy", description: "Philosophy, ethics, logic, reflection, and meaning", topic: "philosophy" },
   { id: "religion", label: "Religion", description: "Religion, spirituality, theology, and sacred literature", topic: "religion" },
@@ -284,6 +296,31 @@ export function mapGutendexBook(book: GutendexBook, categoryLabel = "Public Doma
 
 export function getBookDescription(book: LibraryBook) {
   return book.summaries[0] || book.subjects.slice(0, 3).join(", ") || "Public-domain book available for online reading and offline download.";
+}
+
+export function bookSearchText(book: LibraryBook) {
+  return [
+    book.title,
+    ...book.authors,
+    ...book.genres,
+    ...book.subjects,
+    ...book.bookshelves,
+    ...book.tags,
+    ...book.summaries,
+    book.categoryLabel,
+    book.languageLabel,
+  ].join(" ").toLowerCase();
+}
+
+export function matchesBookCategory(book: LibraryBook, category: BookCategory) {
+  if (category.id === "all") return true;
+
+  const text = bookSearchText(book);
+  const genreMatch = book.genres.some((genre) => genre.toLowerCase() === category.id || genre.toLowerCase() === category.label.toLowerCase());
+  const includeMatch = !category.include?.length || category.include.some((term) => text.includes(term.toLowerCase()));
+  const excludeMatch = category.exclude?.some((term) => text.includes(term.toLowerCase()));
+
+  return (genreMatch || includeMatch) && !excludeMatch;
 }
 
 export function fileSafeName(name: string) {

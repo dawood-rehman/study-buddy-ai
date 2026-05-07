@@ -3,7 +3,7 @@
 import {
   BookOpen, Brain, FileText, Home, Languages,
   LayoutDashboard, Library, MessageSquare, Pencil, ScrollText,
-  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus, LogOut
+  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus, LogOut, Globe2
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/lib/auth-context";
@@ -31,6 +31,7 @@ const moreItems = [
   { title: "Counseling", url: "/counseling", icon: MessageSquare },
   { title: "Resume Builder", url: "/resume", icon: Pencil },
   { title: "Books", url: "/books", icon: BookMarked },
+  { title: "AI Earth Map", url: "/world", icon: Globe2 },
   { title: "Saved Library", url: "/library", icon: Library },
 ];
 

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  BOOKS_PER_PAGE,
   BookSearchResponse,
   fallbackBooks,
   featuredBookIds,
   findBookCategory,
   findBookLanguage,
   GutendexListResponse,
+  matchesBookCategory,
   mapGutendexBook,
 } from "@/lib/books";
 import { getCustomBooks } from "@/lib/server/books";
@@ -92,15 +94,17 @@ export async function GET(request: NextRequest) {
         if (!(book.textUrl || book.htmlUrl || book.epubUrl || book.pdfUrl)) return false;
         if (language.id === "all") return true;
         return book.languages.includes(language.id) || book.languages.includes(language.gutendexCode || "");
-      });
+      })
+      .filter((book) => matchesBookCategory(book, category));
 
     const books = page === 1 ? [...adminBooks, ...gutenbergBooks] : gutenbergBooks;
     const fallback = shouldUseFallback && !books.length ? fallbackBooks : [];
+    const pageBooks = (books.length ? books : fallback).slice(0, BOOKS_PER_PAGE);
     const payload: BookSearchResponse = {
-      books: books.length ? books : fallback,
+      books: pageBooks,
       count: data.count + adminBooks.length || books.length || fallback.length,
-      nextPage: pageFromUrl(data.next),
-      previousPage: pageFromUrl(data.previous),
+      nextPage: (books.length > BOOKS_PER_PAGE || data.next) ? (pageFromUrl(data.next) || page + 1) : null,
+      previousPage: page > 1 ? (pageFromUrl(data.previous) || page - 1) : null,
       source: adminBooks.length ? "Admin Library + Gutendex / Project Gutenberg" : "Gutendex / Project Gutenberg",
     };
 
