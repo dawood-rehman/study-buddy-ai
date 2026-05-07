@@ -18,11 +18,18 @@ export interface AiResponsePayload {
   modelFallbackUsed?: boolean;
 }
 
+type UpgradePromptDetail = {
+  reason?: string;
+  cooldownUntil?: string;
+  plan?: string;
+};
+
 interface ApiErrorPayload {
   error?: string | {
     code?: string;
     message?: string;
     detail?: string;
+    upgrade?: UpgradePromptDetail;
   };
 }
 
@@ -30,23 +37,27 @@ export class AiRequestError extends Error {
   status: number;
   code?: string;
   detail?: string;
+  upgrade?: UpgradePromptDetail;
 
   constructor({
     message,
     status,
     code,
     detail,
+    upgrade,
   }: {
     message: string;
     status: number;
     code?: string;
     detail?: string;
+    upgrade?: UpgradePromptDetail;
   }) {
     super(message);
     this.name = "AiRequestError";
     this.status = status;
     this.code = code;
     this.detail = detail;
+    this.upgrade = upgrade;
   }
 }
 
@@ -62,6 +73,7 @@ function parseApiError(data: ApiErrorPayload | null, response: Response, fallbac
       code: data.error.code,
       message: data.error.message || `AI request failed with status ${response.status}.`,
       detail: data.error.detail,
+      upgrade: data.error.upgrade,
     };
   }
 
@@ -107,12 +119,25 @@ export async function requestAi(payload: AiRequestPayload): Promise<AiResponsePa
 
   if (!response.ok) {
     const parsedError = parseApiError(data, response, rawText);
+    const shouldPromptUpgrade = ["AI_COOLDOWN_ACTIVE", "AI_QUOTA_EXCEEDED", "AI_ACCESS_DISABLED", "FEATURE_REQUIRES_ADVANCED", "FEATURE_REQUIRES_STANDARD"].includes(parsedError.code || "");
+
+    if (shouldPromptUpgrade && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("study-buddy-upgrade", {
+        detail: {
+          code: parsedError.code,
+          message: parsedError.message,
+          detail: parsedError.detail,
+          upgrade: parsedError.upgrade,
+        },
+      }));
+    }
 
     throw new AiRequestError({
       status: response.status,
       code: parsedError.code,
       message: parsedError.message,
       detail: parsedError.detail,
+      upgrade: parsedError.upgrade,
     });
   }
 

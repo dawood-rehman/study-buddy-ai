@@ -4,8 +4,10 @@ import { resolve } from "node:path";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { buildOpenRouterMessages, selectOpenRouterModel } from "@/lib/openrouter";
+import { isAdminEmail } from "@/lib/server/admin";
 import { getAuthenticatedUserDocument, type UserDocument } from "@/lib/server/auth";
 import { ensureIndexes, getDb } from "@/lib/server/mongodb";
+import { getSubscriptionProfile, type SubscriptionPlan } from "@/lib/subscriptions";
 
 export const runtime = "nodejs";
 
@@ -46,6 +48,7 @@ type AiUsageDocument = {
   requestedModels: string[];
   resolvedModel?: string;
   status: "success" | "failed" | "quota-blocked" | "disabled";
+  subscriptionPlan?: SubscriptionPlan | "admin";
   durationMs: number;
   promptChars: number;
   contextChars: number;
@@ -59,7 +62,7 @@ type AiUsageDocument = {
 
 const ATTEMPT_TIMEOUT_MS = 24_000;
 const FALLBACK_STAGGER_MS = 2_500;
-const DEFAULT_MONTHLY_AI_QUOTA = 200;
+const FREE_COOLDOWN_MS = 5 * 60 * 60 * 1000;
 
 function getMaxTokens(task: ParsedAiRequest["task"], options?: Record<string, unknown>) {
   if (options?.mode === "book-assistant" || options?.mode === "earth-map-explorer") return 750;
@@ -75,6 +78,7 @@ type AiErrorCode =
   | "INVALID_REQUEST"
   | "AI_ACCESS_DISABLED"
   | "AI_QUOTA_EXCEEDED"
+  | "AI_COOLDOWN_ACTIVE"
   | "OPENROUTER_BAD_REQUEST"
   | "OPENROUTER_AUTH_ERROR"
   | "OPENROUTER_PAYMENT_REQUIRED"
@@ -90,6 +94,11 @@ type ApiErrorBody = {
     code: AiErrorCode;
     message: string;
     detail?: string;
+    upgrade?: {
+      reason: string;
+      cooldownUntil?: string;
+      plan?: string;
+    };
   };
 };
 
@@ -138,12 +147,19 @@ class OpenRouterAttemptError extends Error {
   }
 }
 
-function createApiError(code: AiErrorCode, message: string, status: number, detail?: string) {
+function createApiError(
+  code: AiErrorCode,
+  message: string,
+  status: number,
+  detail?: string,
+  upgrade?: ApiErrorBody["error"]["upgrade"],
+) {
   const body: ApiErrorBody = {
     error: {
       code,
       message,
       ...(detail ? { detail } : {}),
+      ...(upgrade ? { upgrade } : {}),
     },
   };
 
@@ -301,6 +317,15 @@ function getMonthStart() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
+function getDayStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function getHourStart() {
+  return new Date(Date.now() - 60 * 60 * 1000);
+}
+
 async function logAiUsage(document: AiUsageDocument) {
   try {
     await ensureIndexes();
@@ -319,31 +344,98 @@ async function getCurrentUserForAi(request: NextRequest) {
   }
 }
 
+function getUserSubscriptionProfile(user: UserDocument | null) {
+  const role = isAdminEmail(user?.email) ? "admin" : "user";
+
+  return getSubscriptionProfile({
+    role,
+    subscriptionPlan: user?.subscriptionPlan,
+    subscription: user?.subscription,
+    subscriptionStatus: user?.subscriptionStatus,
+    subscriptionExpiresAt: user?.subscriptionExpiresAt,
+  });
+}
+
 async function enforceAiQuota(user: UserDocument | null) {
   if (!user) return null;
+  const profile = getUserSubscriptionProfile(user);
+
+  if (profile.isAdmin) return null;
+
   if (user.aiDisabled === true) {
     return createApiError("AI_ACCESS_DISABLED", "AI access is disabled for this account. Contact the admin.", 403);
   }
 
-  const quotaLimit = typeof user.aiQuotaLimit === "number" ? user.aiQuotaLimit : DEFAULT_MONTHLY_AI_QUOTA;
-  if (quotaLimit <= 0) {
-    return createApiError("AI_QUOTA_EXCEEDED", "Your AI quota is currently set to zero. Contact the admin to enable AI access.", 429);
+  const cooldownUntil = user.aiCooldownUntil instanceof Date ? user.aiCooldownUntil : null;
+  if (profile.plan === "free" && cooldownUntil && cooldownUntil.getTime() > Date.now()) {
+    return createApiError(
+      "AI_COOLDOWN_ACTIVE",
+      "Free AI quota is exhausted. Upgrade to Standard or Advanced to continue immediately.",
+      429,
+      `Cooldown ends at ${cooldownUntil.toISOString()}.`,
+      {
+        reason: "free-cooldown",
+        cooldownUntil: cooldownUntil.toISOString(),
+        plan: profile.plan,
+      },
+    );
   }
 
   try {
     await ensureIndexes();
     const db = await getDb();
-    const usedThisMonth = await db.collection("aiUsage").countDocuments({
-      userId: user._id,
-      status: "success",
-      createdAt: { $gte: getMonthStart() },
-    });
+    const monthlyLimitOverride = typeof user.aiQuotaLimit === "number" ? user.aiQuotaLimit : undefined;
+    const monthlyLimit = monthlyLimitOverride ?? profile.ai.monthlyLimit;
+    const [usedThisHour, usedToday, usedThisMonth] = await Promise.all([
+      db.collection("aiUsage").countDocuments({
+        userId: user._id,
+        status: "success",
+        createdAt: { $gte: getHourStart() },
+      }),
+      db.collection("aiUsage").countDocuments({
+        userId: user._id,
+        status: "success",
+        createdAt: { $gte: getDayStart() },
+      }),
+      db.collection("aiUsage").countDocuments({
+        userId: user._id,
+        status: "success",
+        createdAt: { $gte: getMonthStart() },
+      }),
+    ]);
 
-    if (usedThisMonth >= quotaLimit) {
+    const hourlyExceeded = usedThisHour >= profile.ai.hourlyLimit;
+    const dailyExceeded = usedToday >= profile.ai.dailyLimit;
+    const monthlyExceeded = usedThisMonth >= monthlyLimit;
+
+    if (hourlyExceeded || dailyExceeded || monthlyExceeded) {
+      const cooldownDate = profile.plan === "free" ? new Date(Date.now() + FREE_COOLDOWN_MS) : null;
+
+      if (cooldownDate) {
+        await db.collection<UserDocument>("users").updateOne(
+          { _id: user._id },
+          { $set: { aiCooldownUntil: cooldownDate, updatedAt: new Date() } },
+        );
+      }
+
+      const quotaMessage = monthlyExceeded
+        ? `Monthly AI quota reached (${usedThisMonth}/${monthlyLimit}).`
+        : dailyExceeded
+          ? `Daily AI quota reached (${usedToday}/${profile.ai.dailyLimit}).`
+          : `Hourly AI quota reached (${usedThisHour}/${profile.ai.hourlyLimit}).`;
+
       return createApiError(
-        "AI_QUOTA_EXCEEDED",
-        `Monthly AI quota reached (${usedThisMonth}/${quotaLimit}). Ask the admin to increase your limit.`,
+        profile.plan === "free" ? "AI_COOLDOWN_ACTIVE" : "AI_QUOTA_EXCEEDED",
+        profile.plan === "free"
+          ? `${quotaMessage} Free users are paused for 5 hours. Upgrade to continue immediately.`
+          : `${quotaMessage} Upgrade or ask admin to increase your limit.`,
         429,
+        cooldownDate ? `Cooldown ends at ${cooldownDate.toISOString()}.` : undefined,
+        {
+          reason: profile.plan === "free" ? "free-quota-cooldown" : "quota-exceeded",
+          cooldownUntil: cooldownDate?.toISOString(),
+          plan: profile.plan,
+        },
       );
     }
   } catch {
@@ -351,6 +443,19 @@ async function enforceAiQuota(user: UserDocument | null) {
   }
 
   return null;
+}
+
+function getFallbackStaggerMs(user: UserDocument | null) {
+  const profile = getUserSubscriptionProfile(user);
+
+  if (profile.ai.priority === "unlimited" || profile.ai.priority === "high") return 1_000;
+  if (profile.ai.priority === "standard") return 1_800;
+  return FALLBACK_STAGGER_MS;
+}
+
+function getSubscriptionPlanForLog(user: UserDocument | null) {
+  const profile = getUserSubscriptionProfile(user);
+  return profile.isAdmin ? "admin" : profile.plan;
 }
 
 function buildHeaders(apiKey: string) {
@@ -474,10 +579,12 @@ async function runFallbackModels({
   apiKey,
   requestBody,
   models,
+  staggerMs,
 }: {
   apiKey: string;
   requestBody: Omit<Record<string, unknown>, "model">;
   models: string[];
+  staggerMs: number;
 }) {
   const controllers = models.map(() => new AbortController());
   const failures: OpenRouterAttemptError[] = [];
@@ -531,7 +638,7 @@ async function runFallbackModels({
         return;
       }
 
-      setTimeout(start, FALLBACK_STAGGER_MS * index);
+      setTimeout(start, staggerMs * index);
     });
   });
 }
@@ -573,6 +680,7 @@ export async function POST(request: NextRequest) {
         modelKey: parsedRequest.modelPreference,
         requestedModels: [],
         status: quotaResponse.status === 403 ? "disabled" : "quota-blocked",
+        subscriptionPlan: getSubscriptionPlanForLog(currentUser),
         durationMs: Date.now() - startedAt,
         promptChars: parsedRequest.prompt.length,
         contextChars: parsedRequest.context?.length || 0,
@@ -603,6 +711,7 @@ export async function POST(request: NextRequest) {
       apiKey: apiKeyOrResponse,
       requestBody,
       models: modelSelection.models,
+      staggerMs: getFallbackStaggerMs(currentUser),
     });
 
     await logAiUsage({
@@ -614,6 +723,7 @@ export async function POST(request: NextRequest) {
       requestedModels: modelSelection.models,
       resolvedModel: attempt.resolvedModel,
       status: "success",
+      subscriptionPlan: getSubscriptionPlanForLog(currentUser),
       durationMs: Date.now() - startedAt,
       promptChars: prompt.length,
       contextChars: context?.length || 0,
@@ -647,6 +757,7 @@ export async function POST(request: NextRequest) {
         modelKey: parsedRequest.modelPreference,
         requestedModels: [],
         status: "failed",
+        subscriptionPlan: getSubscriptionPlanForLog(currentUser),
         durationMs: Date.now() - startedAt,
         promptChars: parsedRequest.prompt.length,
         contextChars: parsedRequest.context?.length || 0,

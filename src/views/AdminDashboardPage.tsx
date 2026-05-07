@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2, Upload, Users } from "lucide-react";
+import { Activity, BookOpen, CheckCircle2, CreditCard, Loader2, Plus, ShieldCheck, Trash2, Upload, Users } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -53,12 +53,41 @@ type AdminUserItem = {
   authProvider: string;
   aiQuotaLimit: number;
   aiDisabled: boolean;
-  subscription: string;
+  subscriptionPlan: "free" | "standard" | "advanced";
+  subscriptionStatus: "active" | "inactive" | "past_due" | "cancelled" | "pending";
+  subscriptionLabel: string;
+  subscriptionExpiresAt?: string | null;
+  aiCooldownUntil?: string | null;
   permissions: string[];
   monthlyUsage: {
     requests: number;
     successfulRequests: number;
     estimatedTokens: number;
+  };
+};
+
+type AdminPaymentItem = {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  plan: "standard" | "advanced";
+  method: string;
+  amount: number;
+  currency: string;
+  status: "pending" | "approved" | "rejected";
+  transactionId: string;
+  note: string;
+  createdAt: string;
+};
+
+type AdminPaymentsPayload = {
+  payments: AdminPaymentItem[];
+  summary: {
+    revenue: number;
+    approvedPayments: number;
+    activeSubscribers: number;
+    pendingPayments: number;
   };
 };
 
@@ -101,8 +130,21 @@ type UserDraftState = {
   email: string;
   aiQuotaLimit: number;
   aiDisabled: boolean;
-  subscription: string;
+  subscriptionPlan: "free" | "standard" | "advanced";
+  subscriptionStatus: "active" | "inactive" | "past_due" | "cancelled" | "pending";
+  subscriptionExpiresAt: string;
+  clearCooldown: boolean;
   permissions: string;
+};
+
+type PaymentFormState = {
+  userId: string;
+  plan: "standard" | "advanced";
+  method: "easypaisa" | "jazzcash" | "bank" | "stripe" | "paypal" | "paddle" | "lemon-squeezy" | "manual";
+  amount: string;
+  currency: string;
+  transactionId: string;
+  note: string;
 };
 
 type BookFormState = {
@@ -141,6 +183,16 @@ const emptyBookForm: BookFormState = {
   status: "active",
 };
 
+const emptyPaymentForm: PaymentFormState = {
+  userId: "",
+  plan: "standard",
+  method: "easypaisa",
+  amount: "3",
+  currency: "USD",
+  transactionId: "",
+  note: "",
+};
+
 async function adminRequest<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, {
     ...init,
@@ -163,7 +215,9 @@ export default function AdminDashboardPage() {
   const [books, setBooks] = useState<AdminBookItem[]>([]);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [usage, setUsage] = useState<AdminUsagePayload | null>(null);
+  const [payments, setPayments] = useState<AdminPaymentsPayload | null>(null);
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
+  const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
   const [bookDrafts, setBookDrafts] = useState<Record<string, BookFormState>>({});
   const [userDrafts, setUserDrafts] = useState<Record<string, UserDraftState>>({});
   const [selectedBookFile, setSelectedBookFile] = useState<File | null>(null);
@@ -174,6 +228,7 @@ export default function AdminDashboardPage() {
   const [isBooksLoading, setIsBooksLoading] = useState(true);
   const [isUsersLoading, setIsUsersLoading] = useState(true);
   const [isUsageLoading, setIsUsageLoading] = useState(true);
+  const [isPaymentsLoading, setIsPaymentsLoading] = useState(true);
   const [isFileUploading, setIsFileUploading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
 
@@ -233,11 +288,25 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadPayments = async () => {
+    setIsPaymentsLoading(true);
+    try {
+      const payload = await adminRequest<AdminPaymentsPayload>("/api/admin/payments");
+      setPayments(payload);
+      setAccessError(null);
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Could not load payments.");
+    } finally {
+      setIsPaymentsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadItems();
     void loadBooks();
     void loadUsers();
     void loadUsage();
+    void loadPayments();
   }, []);
 
   const handleUpdate = async (item: AdminFeedbackItem) => {
@@ -299,7 +368,10 @@ export default function AdminDashboardPage() {
     email: user.email,
     aiQuotaLimit: user.aiQuotaLimit,
     aiDisabled: user.aiDisabled,
-    subscription: user.subscription,
+    subscriptionPlan: user.subscriptionPlan,
+    subscriptionStatus: user.subscriptionStatus,
+    subscriptionExpiresAt: user.subscriptionExpiresAt?.slice(0, 10) || "",
+    clearCooldown: false,
     permissions: user.permissions.join(", "),
   });
 
@@ -424,6 +496,7 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({
           ...draft,
           aiQuotaLimit: Number(draft.aiQuotaLimit),
+          subscriptionExpiresAt: draft.subscriptionExpiresAt || null,
           permissions: draft.permissions.split(",").map((item) => item.trim()).filter(Boolean),
         }),
       });
@@ -436,6 +509,45 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleCreatePayment = async () => {
+    if (!paymentForm.userId) {
+      toast.error("Select a user first.");
+      return;
+    }
+
+    try {
+      await adminRequest("/api/admin/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          ...paymentForm,
+          amount: Number(paymentForm.amount),
+        }),
+      });
+      toast.success("Payment record created");
+      setPaymentForm(emptyPaymentForm);
+      await loadPayments();
+    } catch (error) {
+      toast.error("Payment create failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const handlePaymentStatus = async (payment: AdminPaymentItem, status: AdminPaymentItem["status"]) => {
+    try {
+      await adminRequest(`/api/admin/payments/${payment.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, note: payment.note }),
+      });
+      toast.success(status === "approved" ? "Subscription activated" : "Payment updated");
+      await Promise.all([loadPayments(), loadUsers()]);
+    } catch (error) {
+      toast.error("Payment update failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
   const handleDeleteUser = async (user: AdminUserItem) => {
     try {
       await adminRequest(`/api/admin/users/${user.id}`, { method: "DELETE" });
@@ -443,6 +555,21 @@ export default function AdminDashboardPage() {
       await Promise.all([loadUsers(), loadUsage()]);
     } catch (error) {
       toast.error("User delete failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const handleClearCooldown = async (user: AdminUserItem) => {
+    try {
+      await adminRequest(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ clearCooldown: true }),
+      });
+      toast.success("AI cooldown cleared");
+      await loadUsers();
+    } catch (error) {
+      toast.error("Cooldown update failed", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
     }
@@ -461,11 +588,12 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <Tabs defaultValue="feedback" className="mt-6">
-            <TabsList className="mb-6 grid w-full grid-cols-2 lg:grid-cols-4">
+            <TabsList className="mb-6 grid w-full grid-cols-2 lg:grid-cols-5">
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
               <TabsTrigger value="books">Books</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="usage">AI Usage</TabsTrigger>
+              <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="feedback">
@@ -655,6 +783,7 @@ export default function AdminDashboardPage() {
                             <div>
                               <h3 className="font-display text-lg font-semibold text-foreground">{user.name}</h3>
                               <p className="text-sm text-muted-foreground">{user.email} - {user.role} - {user.authProvider}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{user.subscriptionLabel} - {user.subscriptionStatus}{user.aiCooldownUntil ? " - Cooldown active" : ""}</p>
                             </div>
                           </div>
                           <div className="text-right text-xs text-muted-foreground">
@@ -673,21 +802,36 @@ export default function AdminDashboardPage() {
                               <SelectItem value="disabled">AI Disabled</SelectItem>
                             </SelectContent>
                           </Select>
-                          <Select value={draft.subscription} onValueChange={(value) => updateUserDraft(user, { subscription: value })}>
+                          <Select value={draft.subscriptionPlan} onValueChange={(value) => updateUserDraft(user, { subscriptionPlan: value as UserDraftState["subscriptionPlan"] })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="free">Free</SelectItem>
-                              <SelectItem value="student">Student</SelectItem>
-                              <SelectItem value="premium">Premium</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="standard">Standard - $3</SelectItem>
+                              <SelectItem value="advanced">Advanced - $5</SelectItem>
                             </SelectContent>
                           </Select>
+                          <Select value={draft.subscriptionStatus} onValueChange={(value) => updateUserDraft(user, { subscriptionStatus: value as UserDraftState["subscriptionStatus"] })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="past_due">Past Due</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input value={draft.subscriptionExpiresAt} onChange={(event) => updateUserDraft(user, { subscriptionExpiresAt: event.target.value })} placeholder="Expires at" type="date" />
                           <Input value={draft.permissions} onChange={(event) => updateUserDraft(user, { permissions: event.target.value })} placeholder="Permissions, comma separated" />
                         </div>
                         <div className="mt-4 flex flex-wrap gap-2">
                           <Button variant="outline" onClick={() => handleUpdateUser(user)}>
                             <CheckCircle2 className="mr-2 h-4 w-4" /> Save User
                           </Button>
+                          {user.aiCooldownUntil ? (
+                            <Button variant="outline" onClick={() => handleClearCooldown(user)}>
+                              Clear Cooldown
+                            </Button>
+                          ) : null}
                           <Button variant="outline" onClick={() => handleDeleteUser(user)} disabled={user.role === "admin"}>
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </Button>
@@ -777,6 +921,118 @@ export default function AdminDashboardPage() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="subscriptions">
+              {isPaymentsLoading || !payments ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+                  <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+                  Loading subscriptions...
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["Revenue", `${payments.summary.revenue.toLocaleString()} USD`],
+                      ["Approved", payments.summary.approvedPayments.toLocaleString()],
+                      ["Active Subscribers", payments.summary.activeSubscribers.toLocaleString()],
+                      ["Pending", payments.summary.pendingPayments.toLocaleString()],
+                    ].map(([label, value]) => (
+                      <div key={label} className="glass-card p-4">
+                        <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
+                        <p className="mt-2 font-display text-2xl font-semibold text-foreground">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <section className="glass-card p-5">
+                    <div className="mb-4 flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">Create Payment Verification</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <Select value={paymentForm.userId} onValueChange={(value) => setPaymentForm((current) => ({ ...current, userId: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                        <SelectContent>
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>{user.email}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={paymentForm.plan} onValueChange={(value) => setPaymentForm((current) => ({ ...current, plan: value as PaymentFormState["plan"], amount: value === "advanced" ? "5" : "3" }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="standard">Standard - $3/month</SelectItem>
+                          <SelectItem value="advanced">Advanced - $5/month</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={paymentForm.method} onValueChange={(value) => setPaymentForm((current) => ({ ...current, method: value as PaymentFormState["method"] }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="easypaisa">Easypaisa</SelectItem>
+                          <SelectItem value="jazzcash">JazzCash</SelectItem>
+                          <SelectItem value="bank">Bank Transfer</SelectItem>
+                          <SelectItem value="stripe">Stripe</SelectItem>
+                          <SelectItem value="paypal">PayPal</SelectItem>
+                          <SelectItem value="paddle">Paddle</SelectItem>
+                          <SelectItem value="lemon-squeezy">Lemon Squeezy</SelectItem>
+                          <SelectItem value="manual">Manual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} placeholder="Amount" type="number" min="0" />
+                      <Input value={paymentForm.currency} onChange={(event) => setPaymentForm((current) => ({ ...current, currency: event.target.value }))} placeholder="Currency" />
+                      <Input value={paymentForm.transactionId} onChange={(event) => setPaymentForm((current) => ({ ...current, transactionId: event.target.value }))} placeholder="Transaction ID" />
+                    </div>
+                    <Textarea value={paymentForm.note} onChange={(event) => setPaymentForm((current) => ({ ...current, note: event.target.value }))} placeholder="Payment note, screenshot reference, bank details, or admin comment" className="mt-3 min-h-[90px]" />
+                    <Button className="gradient-primary mt-4 border-0" onClick={handleCreatePayment}>
+                      <Plus className="mr-2 h-4 w-4" /> Add Payment
+                    </Button>
+                  </section>
+
+                  <section className="glass-card p-5">
+                    <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Payment Instructions</h2>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-md border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                        <h3 className="mb-2 font-display font-semibold text-foreground">Pakistan</h3>
+                        <p>Easypaisa, JazzCash, and bank transfer are handled through manual verification. Add the transaction record, then approve it to activate the subscription for one month.</p>
+                      </div>
+                      <div className="rounded-md border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                        <h3 className="mb-2 font-display font-semibold text-foreground">International</h3>
+                        <p>Stripe, PayPal, Paddle, and Lemon Squeezy records can be tracked here. Automatic recurring activation can be connected later through provider webhooks.</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="glass-card p-5">
+                    <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Payment Verifications</h2>
+                    <div className="space-y-3">
+                      {payments.payments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No payment records yet.</p>
+                      ) : payments.payments.map((payment) => (
+                        <article key={payment.id} className="rounded-md border border-border bg-background p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-display font-semibold text-foreground">{payment.userName || payment.userEmail}</h3>
+                              <p className="text-sm text-muted-foreground">{payment.plan} - {payment.method} - {payment.amount} {payment.currency}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">TX: {payment.transactionId || "n/a"} - {new Date(payment.createdAt).toLocaleString()}</p>
+                            </div>
+                            <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{payment.status}</span>
+                          </div>
+                          {payment.note ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{payment.note}</p> : null}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handlePaymentStatus(payment, "approved")} disabled={payment.status === "approved"}>
+                              <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handlePaymentStatus(payment, "rejected")} disabled={payment.status === "rejected"}>
+                              Reject
+                            </Button>
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   </section>
                 </div>

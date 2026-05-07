@@ -9,6 +9,13 @@ export type StudyBuddyUser = {
   email: string;
   createdAt: string;
   role: "admin" | "user";
+  subscriptionPlan: "free" | "standard" | "advanced";
+  subscriptionStatus: "active" | "inactive" | "past_due" | "cancelled" | "pending";
+  subscriptionLabel: string;
+  subscriptionExpiresAt?: string;
+  aiQuotaLimit?: number;
+  aiDisabled?: boolean;
+  aiCooldownUntil?: string;
 };
 
 type AuthContextValue = {

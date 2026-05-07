@@ -49,6 +49,8 @@ export async function ensureIndexes() {
   cache.indexesPromise = getDb().then(async (db) => {
     await Promise.all([
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
+      db.collection("users").createIndex({ subscriptionPlan: 1, subscriptionStatus: 1 }),
+      db.collection("users").createIndex({ aiCooldownUntil: 1 }),
       db.collection("sessions").createIndex({ tokenHash: 1 }, { unique: true }),
       db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("libraryItems").createIndex({ userId: 1, createdAt: -1 }),
@@ -69,6 +71,9 @@ export async function ensureIndexes() {
       db.collection("passwordResetTokens").createIndex({ tokenHash: 1 }, { unique: true }),
       db.collection("passwordResetTokens").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("passwordResetTokens").createIndex({ userId: 1, createdAt: -1 }),
+      db.collection("payments").createIndex({ userId: 1, createdAt: -1 }),
+      db.collection("payments").createIndex({ status: 1, createdAt: -1 }),
+      db.collection("payments").createIndex({ plan: 1, status: 1 }),
     ]);
   }).catch((error) => {
     cache.indexesPromise = undefined;

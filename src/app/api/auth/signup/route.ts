@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
       name,
       email,
       ...passwordFields,
+      subscriptionPlan: "free",
+      subscriptionStatus: "active",
+      subscriptionStartedAt: now,
+      aiCooldownUntil: null,
       createdAt: now,
       updatedAt: now,
     });

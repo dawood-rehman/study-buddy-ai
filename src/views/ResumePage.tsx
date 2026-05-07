@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { useAuth } from "@/lib/auth-context";
 import { readTextFromFile } from "@/lib/file-text";
+import { getSubscriptionProfile } from "@/lib/subscriptions";
 
 interface ResumeData {
   name: string;
@@ -124,6 +126,19 @@ const atsTemplates: Array<{ name: string; description: string; data: ResumeData 
   },
 ];
 
+const basicResumeTemplate: ResumeData = {
+  ...emptyResume,
+  name: "Your Name",
+  title: "Student / Entry-Level Candidate",
+  email: "your.email@example.com",
+  location: "Your City, Country",
+  summary: "Motivated student with strong learning ability, communication skills, and interest in building practical experience.",
+  education: ["Your Degree or School - Year"],
+  skills: ["Communication", "Teamwork", "Microsoft Office", "Research", "Problem Solving"],
+  experience: ["Add your internship, volunteer work, class project, or part-time experience here."],
+  projects: ["Add one academic or personal project with a short outcome."],
+};
+
 const listFields: Array<{ field: keyof Pick<ResumeData, "education" | "skills" | "experience" | "projects">; title: string; multiline?: boolean }> = [
   { field: "education", title: "Education" },
   { field: "skills", title: "Skills" },
@@ -140,6 +155,7 @@ function fileSafeName(name: string) {
 }
 
 export default function ResumePage() {
+  const { user } = useAuth();
   const [data, setData] = useState<ResumeData>(emptyResume);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [atsAnalysis, setAtsAnalysis] = useState<string | null>(null);
@@ -150,6 +166,22 @@ export default function ResumePage() {
     () => [data.email, data.phone, data.location, data.linkedin, data.portfolio].filter(Boolean).join(" | "),
     [data.email, data.location, data.linkedin, data.phone, data.portfolio],
   );
+  const accessProfile = useMemo(() => getSubscriptionProfile({
+    role: user?.role || "user",
+    subscriptionPlan: user?.subscriptionPlan,
+    subscriptionStatus: user?.subscriptionStatus,
+    subscriptionExpiresAt: user?.subscriptionExpiresAt,
+  }), [user]);
+
+  const showUpgradePrompt = (message: string) => {
+    window.dispatchEvent(new CustomEvent("study-buddy-upgrade", {
+      detail: {
+        code: "FEATURE_REQUIRES_ADVANCED",
+        message,
+        upgrade: { reason: "resume-premium", plan: accessProfile.plan },
+      },
+    }));
+  };
 
   const updateField = (field: keyof ResumeData, value: string) => {
     setData((current) => ({ ...current, [field]: value }));
@@ -171,12 +203,24 @@ export default function ResumePage() {
   };
 
   const loadTemplate = (template = atsTemplates[0]) => {
+    if (!accessProfile.resume.canUseAtsTemplates) {
+      showUpgradePrompt("ATS-friendly resume templates are available in the Advanced plan. Admins have unrestricted access.");
+      return;
+    }
+
     setData(template.data);
     setAiSuggestion(null);
     setAtsAnalysis(null);
     toast.success(`${template.name} loaded`, {
       description: "Edit the details, run AI improvement, then download a text-based ATS PDF.",
     });
+  };
+
+  const loadBasicTemplate = () => {
+    setData(basicResumeTemplate);
+    setAiSuggestion(null);
+    setAtsAnalysis(null);
+    toast.success("Basic resume sample loaded");
   };
 
   const handleResumeUpload = async (file: File) => {
@@ -195,6 +239,11 @@ export default function ResumePage() {
   };
 
   const handleAtsAnalysis = async () => {
+    if (!accessProfile.resume.canUseAtsScore) {
+      showUpgradePrompt("ATS resume score analysis is available in the Advanced plan.");
+      return;
+    }
+
     const resumeText = JSON.stringify(data, null, 2);
     if (!data.name.trim() && !data.summary.trim() && filled(data.experience).length === 0) {
       toast.error("Add or upload resume content first.");
@@ -229,6 +278,11 @@ export default function ResumePage() {
   };
 
   const handleAiGenerate = async () => {
+    if (!accessProfile.resume.canUseAiSuggestions) {
+      showUpgradePrompt("AI resume improvement suggestions are available in the Advanced plan.");
+      return;
+    }
+
     if (!data.name.trim() && !data.summary.trim() && filled(data.experience).length === 0) {
       toast.error("Add some resume details first.");
       return;
@@ -397,6 +451,26 @@ export default function ResumePage() {
         <PageHeader icon={Pencil} title="Resume Builder" description="Create an ATS-friendly resume and download it as a text-based PDF" />
       </div>
 
+      <div className="mb-5 rounded-md border border-border bg-background p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-semibold text-foreground">{accessProfile.label} Resume Access</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {accessProfile.resume.canUseAtsTemplates
+                ? "ATS templates, score analysis, and AI optimization are unlocked."
+                : accessProfile.plan === "standard"
+                  ? "Professional resume builder is available. ATS templates and scoring require Advanced."
+                  : "Basic resume builder is available. Premium resume tools require Advanced."}
+            </p>
+          </div>
+          {!accessProfile.resume.canUseAtsScore ? (
+            <Button variant="outline" onClick={() => showUpgradePrompt("Upgrade to Advanced for ATS templates, ATS score, and AI resume optimization.")}>
+              Upgrade Resume Tools
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)]">
         <div className="glass-card p-5 sm:p-6">
           <div className="mb-5">
@@ -406,6 +480,7 @@ export default function ResumePage() {
                 <button key={template.name} onClick={() => loadTemplate(template)} className="rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-primary">
                   <span className="block text-sm font-semibold text-foreground">{template.name}</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{template.description}</span>
+                  {!accessProfile.resume.canUseAtsTemplates ? <span className="mt-2 block text-xs font-medium text-primary">Advanced required</span> : null}
                 </button>
               ))}
             </div>
@@ -447,16 +522,16 @@ export default function ResumePage() {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button className="gradient-primary border-0 font-semibold" onClick={handleAiGenerate} disabled={isGenerating}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {isGenerating ? "Improving..." : "AI Improve"}
+              {isGenerating ? "Improving..." : accessProfile.resume.canUseAiSuggestions ? "AI Improve" : "AI Improve (Advanced)"}
             </Button>
             <Button variant="outline" onClick={handleAtsAnalysis} disabled={isAnalyzing}>
               {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-2 h-4 w-4" />}
-              ATS Score
+              {accessProfile.resume.canUseAtsScore ? "ATS Score" : "ATS Score (Advanced)"}
             </Button>
             <Button variant="outline" onClick={handleDownloadPdf}>
               <Download className="mr-2 h-4 w-4" /> Download PDF
             </Button>
-            <Button variant="outline" onClick={() => loadTemplate()} className="gap-2">
+            <Button variant="outline" onClick={() => accessProfile.resume.canUseAtsTemplates ? loadTemplate() : loadBasicTemplate()} className="gap-2">
               <Wand2 className="h-4 w-4" /> Sample
             </Button>
           </div>

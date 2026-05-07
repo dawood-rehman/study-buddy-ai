@@ -79,7 +79,44 @@ function findPlace(query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return null;
 
-  return mapPlaces.find((place) => place.name.toLowerCase().includes(normalized) || place.keywords.some((keyword) => keyword.includes(normalized))) || null;
+  const exact = mapPlaces.find((place) => place.name.toLowerCase().includes(normalized) || place.keywords.some((keyword) => keyword.includes(normalized)));
+  if (exact) return exact;
+
+  return findFuzzyPlace(normalized);
+}
+
+function levenshteinDistance(a: string, b: string) {
+  const rows = Array.from({ length: a.length + 1 }, (_, index) => [index]);
+
+  for (let column = 1; column <= b.length; column += 1) {
+    rows[0][column] = column;
+  }
+
+  for (let row = 1; row <= a.length; row += 1) {
+    for (let column = 1; column <= b.length; column += 1) {
+      const cost = a[row - 1] === b[column - 1] ? 0 : 1;
+      rows[row][column] = Math.min(
+        rows[row - 1][column] + 1,
+        rows[row][column - 1] + 1,
+        rows[row - 1][column - 1] + cost,
+      );
+    }
+  }
+
+  return rows[a.length][b.length];
+}
+
+function findFuzzyPlace(query: string) {
+  const candidates = mapPlaces.flatMap((place) => [place.name.toLowerCase(), ...place.keywords].map((keyword) => ({ place, keyword })));
+  const ranked = candidates
+    .map((candidate) => ({ ...candidate, distance: levenshteinDistance(query, candidate.keyword) }))
+    .sort((a, b) => a.distance - b.distance);
+  const best = ranked[0];
+
+  if (!best) return null;
+
+  const maxDistance = query.length <= 5 ? 1 : query.length <= 9 ? 2 : 3;
+  return best.distance <= maxDistance ? best.place : null;
 }
 
 function loadLeaflet() {
@@ -220,13 +257,19 @@ export default function EarthMapPage() {
 
       map.on("click", (event) => {
         const place: MapPlace = {
-          name: `Selected Location (${event.latlng.lat.toFixed(3)}, ${event.latlng.lng.toFixed(3)})`,
-          region: "Custom location",
+          name: "Finding place name...",
+          region: `${event.latlng.lat.toFixed(3)}, ${event.latlng.lng.toFixed(3)}`,
           latitude: event.latlng.lat,
           longitude: event.latlng.lng,
           keywords: [],
         };
         explorePlaceRef.current(place, undefined, false);
+        reverseGeocodePlace(event.latlng.lat, event.latlng.lng)
+          .then((resolvedPlace) => explorePlaceRef.current(resolvedPlace, undefined, false))
+          .catch(() => explorePlaceRef.current({
+            ...place,
+            name: `Selected Location (${event.latlng.lat.toFixed(3)}, ${event.latlng.lng.toFixed(3)})`,
+          }, undefined, false));
       });
 
       setIsMapLoading(false);
@@ -251,7 +294,7 @@ export default function EarthMapPage() {
   }, []);
 
   const searchOnlinePlace = async (term: string) => {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(term)}`, {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(term)}`, {
       headers: {
         Accept: "application/json",
       },
@@ -262,11 +305,29 @@ export default function EarthMapPage() {
     if (!first?.lat || !first?.lon) return null;
 
     return {
-      name: first.display_name?.split(",")[0] || term,
+      name: first.name || first.display_name?.split(",")[0] || term,
       region: first.display_name || "Searched location",
       latitude: Number(first.lat),
       longitude: Number(first.lon),
       keywords: [term.toLowerCase()],
+    } satisfies MapPlace;
+  };
+
+  const reverseGeocodePlace = async (latitude: number, longitude: number) => {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&addressdetails=1&lat=${latitude}&lon=${longitude}`, {
+      headers: { Accept: "application/json" },
+    });
+    const result = await response.json();
+    const address = result?.address || {};
+    const name = result?.name || address.city || address.town || address.village || address.state || address.country || "Selected Location";
+    const region = result?.display_name || [address.state, address.country].filter(Boolean).join(", ") || "Custom location";
+
+    return {
+      name,
+      region,
+      latitude,
+      longitude,
+      keywords: [name.toLowerCase()],
     } satisfies MapPlace;
   };
 
@@ -322,6 +383,12 @@ export default function EarthMapPage() {
                 {isLoading || isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Explore
               </Button>
+            </div>
+
+            <div className="mb-4 rounded-md border border-border bg-background p-3">
+              <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">Selected place</p>
+              <p className="mt-1 font-display text-lg font-semibold text-foreground">{selectedPlace.name}</p>
+              <p className="text-sm text-muted-foreground">{selectedPlace.region}</p>
             </div>
 
             <div className="relative min-h-[560px] overflow-hidden rounded-md border border-border bg-muted">

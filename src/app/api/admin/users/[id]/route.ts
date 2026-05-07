@@ -12,8 +12,11 @@ const updateUserSchema = z.object({
   email: z.string().trim().email("Enter a valid email address.").optional(),
   aiQuotaLimit: z.coerce.number().int().min(0, "Quota cannot be negative.").max(100000, "Quota is too high.").optional(),
   aiDisabled: z.boolean().optional(),
-  subscription: z.string().trim().max(40, "Subscription label is too long.").optional(),
+  subscriptionPlan: z.enum(["free", "standard", "advanced"]).optional(),
+  subscriptionStatus: z.enum(["active", "inactive", "past_due", "cancelled", "pending"]).optional(),
+  subscriptionExpiresAt: z.string().trim().optional().nullable(),
   permissions: z.array(z.string().trim().max(40)).max(30).optional(),
+  clearCooldown: z.boolean().optional(),
 });
 
 async function requireAdmin(request: NextRequest) {
@@ -77,8 +80,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
     if (parsed.data.aiQuotaLimit !== undefined) patch.aiQuotaLimit = parsed.data.aiQuotaLimit;
     if (parsed.data.aiDisabled !== undefined) patch.aiDisabled = parsed.data.aiDisabled;
-    if (parsed.data.subscription !== undefined) patch.subscription = parsed.data.subscription || "free";
+    if (parsed.data.subscriptionPlan !== undefined) patch.subscriptionPlan = parsed.data.subscriptionPlan;
+    if (parsed.data.subscriptionStatus !== undefined) patch.subscriptionStatus = parsed.data.subscriptionStatus;
+    if (parsed.data.subscriptionExpiresAt !== undefined) {
+      patch.subscriptionExpiresAt = parsed.data.subscriptionExpiresAt ? new Date(parsed.data.subscriptionExpiresAt) : null;
+    }
     if (parsed.data.permissions !== undefined) patch.permissions = parsed.data.permissions;
+    if (parsed.data.clearCooldown) patch.aiCooldownUntil = null;
 
     await db.collection<UserDocument>("users").updateOne({ _id: userId }, { $set: patch });
 

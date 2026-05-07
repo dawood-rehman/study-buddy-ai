@@ -5,6 +5,7 @@ import { ObjectId, type Document } from "mongodb";
 import { auth as authJs } from "@/auth";
 import { isAdminEmail } from "@/lib/server/admin";
 import { ensureIndexes, getDb } from "@/lib/server/mongodb";
+import { getSubscriptionProfile, type SubscriptionPlan, type SubscriptionStatus } from "@/lib/subscriptions";
 
 const pbkdf2 = promisify(pbkdf2Callback);
 const sessionCookieName = "study_buddy_session";
@@ -16,6 +17,13 @@ export type PublicUser = {
   email: string;
   createdAt: string;
   role: "admin" | "user";
+  subscriptionPlan: SubscriptionPlan;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionLabel: string;
+  subscriptionExpiresAt?: string;
+  aiQuotaLimit?: number;
+  aiDisabled?: boolean;
+  aiCooldownUntil?: string;
 };
 
 export type UserDocument = Document & {
@@ -32,12 +40,28 @@ function normalizeEmail(email: string) {
 }
 
 export function toPublicUser(user: UserDocument): PublicUser {
+  const role = isAdminEmail(user.email) ? "admin" : "user";
+  const profile = getSubscriptionProfile({
+    role,
+    subscriptionPlan: user.subscriptionPlan,
+    subscription: user.subscription,
+    subscriptionStatus: user.subscriptionStatus,
+    subscriptionExpiresAt: user.subscriptionExpiresAt,
+  });
+
   return {
     id: user._id.toString(),
     name: user.name,
     email: user.email,
     createdAt: user.createdAt.toISOString(),
-    role: isAdminEmail(user.email) ? "admin" : "user",
+    role,
+    subscriptionPlan: profile.plan,
+    subscriptionStatus: profile.status,
+    subscriptionLabel: profile.label,
+    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString?.(),
+    aiQuotaLimit: user.aiQuotaLimit,
+    aiDisabled: user.aiDisabled === true,
+    aiCooldownUntil: user.aiCooldownUntil?.toISOString?.(),
   };
 }
 

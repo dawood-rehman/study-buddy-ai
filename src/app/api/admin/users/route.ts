@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { isAdminEmail } from "@/lib/server/admin";
 import { getAuthenticatedUserDocument, type UserDocument } from "@/lib/server/auth";
 import { ensureIndexes, getDb } from "@/lib/server/mongodb";
+import { getSubscriptionProfile } from "@/lib/subscriptions";
 
 export const runtime = "nodejs";
 
@@ -35,16 +36,29 @@ function getMonthStart() {
 }
 
 function serializeUser(user: UserDocument, usage?: UsageSummary) {
+  const role = isAdminEmail(user.email) ? "admin" : "user";
+  const profile = getSubscriptionProfile({
+    role,
+    subscriptionPlan: user.subscriptionPlan,
+    subscription: user.subscription,
+    subscriptionStatus: user.subscriptionStatus,
+    subscriptionExpiresAt: user.subscriptionExpiresAt,
+  });
+
   return {
     id: user._id.toString(),
     name: user.name,
     email: user.email,
-    role: isAdminEmail(user.email) ? "admin" : "user",
+    role,
     createdAt: user.createdAt?.toISOString?.() || new Date().toISOString(),
     authProvider: user.authProvider || "email",
     aiQuotaLimit: typeof user.aiQuotaLimit === "number" ? user.aiQuotaLimit : DEFAULT_MONTHLY_AI_QUOTA,
     aiDisabled: user.aiDisabled === true,
-    subscription: user.subscription || "free",
+    subscriptionPlan: profile.plan,
+    subscriptionStatus: profile.status,
+    subscriptionLabel: profile.label,
+    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString?.() || null,
+    aiCooldownUntil: user.aiCooldownUntil?.toISOString?.() || null,
     permissions: Array.isArray(user.permissions) ? user.permissions : [],
     monthlyUsage: {
       requests: usage?.requests || 0,
