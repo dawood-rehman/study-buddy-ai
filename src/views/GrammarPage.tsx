@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ChevronRight, Languages, Loader2, MessageCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronRight, Languages, Loader2, Map, MessageCircle, Sparkles } from "lucide-react";
 import { GeneratedContent } from "@/components/GeneratedContent";
 import { PageHeader } from "@/components/PageHeader";
+import { PracticeTestPanel } from "@/components/PracticeTestPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 import { getErrorMessage, requestAi } from "@/lib/ai-client";
 
@@ -31,8 +33,12 @@ export default function GrammarPage() {
   const [lesson, setLesson] = useState<string | null>(null);
   const [tutorInput, setTutorInput] = useState("");
   const [tutorReply, setTutorReply] = useState<string | null>(null);
+  const [currentState, setCurrentState] = useState("beginner");
+  const [roadmapGoals, setRoadmapGoals] = useState("");
+  const [roadmap, setRoadmap] = useState<string | null>(null);
   const [isLessonLoading, setIsLessonLoading] = useState(false);
   const [isTutorLoading, setIsTutorLoading] = useState(false);
+  const [isRoadmapLoading, setIsRoadmapLoading] = useState(false);
 
   const handleGenerateLesson = async () => {
     setIsLessonLoading(true);
@@ -94,14 +100,44 @@ export default function GrammarPage() {
     }
   };
 
+  const handleGenerateRoadmap = async () => {
+    setIsRoadmapLoading(true);
+    try {
+      const result = await requestAi({
+        task: "grammar",
+        language: "english",
+        prompt: [
+          "Create a personalized English grammar and communication roadmap.",
+          `Current student state: ${currentState}.`,
+          roadmapGoals ? `Student goals or weak areas: ${roadmapGoals}` : "Student did not provide extra goals, so create a balanced roadmap.",
+          "Include weekly milestones, daily practice routine, grammar topics order, speaking practice, writing tasks, vocabulary growth, checkpoints, and measurable progress tests.",
+          "Make it beginner-friendly, practical, and structured.",
+        ].join("\n"),
+        options: { mode: "grammar-roadmap", currentState, roadmapGoals },
+      });
+
+      setRoadmap(result.content);
+      toast.success("Roadmap ready", {
+        description: `Model: ${result.model}`,
+      });
+    } catch (error) {
+      toast.error("Roadmap generation failed", {
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setIsRoadmapLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader icon={Languages} title="Grammar Coach" description="Build English foundations and practice with an AI English tutor" />
 
       <Tabs defaultValue="foundation" className="mt-6">
-        <TabsList className="mb-6 grid w-full grid-cols-2">
+        <TabsList className="mb-6 grid w-full grid-cols-3">
           <TabsTrigger value="foundation">English Grammar Foundation</TabsTrigger>
           <TabsTrigger value="tutor">AI English Tutor</TabsTrigger>
+          <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
         </TabsList>
 
         <TabsContent value="foundation">
@@ -184,7 +220,60 @@ export default function GrammarPage() {
             </div>
           </div>
         </TabsContent>
+
+        <TabsContent value="roadmap">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <div className="glass-card p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <Map className="h-5 w-5 text-primary" />
+                <h2 className="font-display text-lg font-semibold text-foreground">Personal English Roadmap</h2>
+              </div>
+              <label className="mb-2 block text-sm font-medium text-foreground">Current State</label>
+              <Select value={currentState} onValueChange={setCurrentState}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <label className="mb-2 mt-4 block text-sm font-medium text-foreground">Goals or Weak Areas</label>
+              <Textarea
+                value={roadmapGoals}
+                onChange={(event) => setRoadmapGoals(event.target.value)}
+                placeholder="Example: I understand basic grammar but I struggle with tenses, speaking confidence, and professional emails..."
+                className="min-h-[180px]"
+              />
+              <Button className="gradient-primary mt-4 w-full border-0" onClick={handleGenerateRoadmap} disabled={isRoadmapLoading}>
+                {isRoadmapLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Generate Roadmap
+              </Button>
+            </div>
+
+            <div className="glass-card p-5">
+              {roadmap ? (
+                <GeneratedContent content={roadmap} title="English Learning Roadmap" type="grammar" />
+              ) : (
+                <div className="flex min-h-[320px] items-center justify-center text-center">
+                  <p className="max-w-md text-sm leading-6 text-muted-foreground">
+                    Choose your level and goals to get a practical roadmap with weekly targets, daily practice, grammar sequence, speaking drills, and progress checks.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      <PracticeTestPanel
+        language="english"
+        sourceTitle="Grammar Coach"
+        defaultContent={[roadmapGoals, lesson || tutorReply || roadmap || ""].filter(Boolean).join("\n\n")}
+        className="mt-6"
+      />
     </div>
   );
 }

@@ -1,348 +1,130 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { BookOpen, BookMarked, BookmarkPlus, Download, Search, Star } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BookMarked, BookOpen, BookmarkPlus, Download, ExternalLink, FileDown, Loader2, Search, Star } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
+import { BookSearchResponse, LibraryBook, bookCategories, getBookDescription } from "@/lib/books";
 import { addLibraryItem } from "@/lib/library-store";
 
-type Book = {
-  title: string;
-  author: string;
-  genre: string;
-  popular: boolean;
-  desc: string;
-  availability: "public-domain" | "preview-guide";
-  tags: string[];
-  reader: string[];
-};
+type ReaderState = "idle" | "loading" | "ready" | "error";
 
-const books: Book[] = [
-  {
-    title: "Pride and Prejudice",
-    author: "Jane Austen",
-    genre: "Novel",
-    popular: true,
-    availability: "public-domain",
-    tags: ["classic", "romance", "society", "english literature"],
-    desc: "A classic novel about family, manners, judgment, and social expectations.",
-    reader: [
-      "Pride and Prejudice follows Elizabeth Bennet as she studies character, pride, class, and first impressions. The story is useful for readers who want elegant English prose, social observation, and memorable dialogue.",
-      "Reading focus: notice how Austen reveals personality through conversation. Pay attention to indirect criticism, irony, and how small misunderstandings grow into larger conflicts.",
-      "Study prompt: list three moments where Elizabeth changes her opinion. What evidence changes her mind?",
-    ],
-  },
-  {
-    title: "The Adventures of Sherlock Holmes",
-    author: "Arthur Conan Doyle",
-    genre: "Mystery",
-    popular: true,
-    availability: "public-domain",
-    tags: ["detective", "logic", "crime", "short stories"],
-    desc: "Detective stories built around observation, deduction, and clever problem solving.",
-    reader: [
-      "Sherlock Holmes stories are compact mysteries that train attention to detail. Holmes observes small facts, connects them to human behavior, and tests explanations before reaching a conclusion.",
-      "Reading focus: separate clues from assumptions. Write down what is directly observed and what is only guessed.",
-      "Practice: after each scene, pause and predict the explanation before reading Holmes's reasoning.",
-    ],
-  },
-  {
-    title: "Leaves of Grass",
-    author: "Walt Whitman",
-    genre: "Poetry",
-    popular: true,
-    availability: "public-domain",
-    tags: ["poems", "free verse", "identity", "nature"],
-    desc: "A poetry collection known for free verse, self-expression, nature, and democracy.",
-    reader: [
-      "Leaves of Grass is a major free-verse poetry collection. It is useful for learning rhythm without fixed rhyme and for studying how repetition can build emotional force.",
-      "Reading focus: mark repeated words, images of the body, and references to nature. Ask how the speaker connects the self with the wider world.",
-      "Writing task: write six free-verse lines about an ordinary place using repetition and sensory detail.",
-    ],
-  },
-  {
-    title: "The Prophet",
-    author: "Kahlil Gibran",
-    genre: "Philosophy",
-    popular: true,
-    availability: "public-domain",
-    tags: ["wisdom", "poetic prose", "life", "spiritual"],
-    desc: "Poetic essays on love, work, freedom, teaching, joy, sorrow, and life.",
-    reader: [
-      "The Prophet uses poetic prose to explore common human experiences. Each section can be read slowly as reflective writing rather than as a conventional story.",
-      "Reading focus: choose one topic, such as work or friendship, and summarize the central idea in one sentence.",
-      "Reflection: write how the idea applies to your study life, family life, or career goals.",
-    ],
-  },
-  {
-    title: "The Elements of Style",
-    author: "William Strunk Jr.",
-    genre: "Writing",
-    popular: true,
-    availability: "public-domain",
-    tags: ["english", "grammar", "writing", "style"],
-    desc: "A compact guide to writing clear, direct English.",
-    reader: [
-      "This guide teaches concise writing. Its main value is not fancy language; it is discipline: remove unnecessary words, prefer clear structure, and make every sentence carry useful meaning.",
-      "Reading focus: revise one paragraph from your own writing. Cut repeated words, replace vague verbs, and move the main idea to the front.",
-      "Practice: rewrite a long sentence into two shorter sentences without losing meaning.",
-    ],
-  },
-  {
-    title: "A Brief History of Time",
-    author: "Stephen Hawking",
-    genre: "Science",
-    popular: true,
-    availability: "preview-guide",
-    tags: ["physics", "cosmology", "space", "black holes"],
-    desc: "An accessible guide to cosmology, black holes, time, and the universe.",
-    reader: [
-      "Reading guide: this book explains big physics ideas for general readers. Start with the questions: What is time? How did the universe begin? What are black holes?",
-      "Study focus: write definitions for universe, gravity, black hole, singularity, and time arrow. Keep each definition simple enough for a classmate.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Introduction to Algorithms",
-    author: "Cormen, Leiserson, Rivest, and Stein",
-    genre: "Computer Science",
-    popular: true,
-    availability: "preview-guide",
-    tags: ["algorithms", "data structures", "programming", "cs"],
-    desc: "A standard reference for algorithms, data structures, and complexity.",
-    reader: [
-      "Reading guide: approach algorithms by pattern, not memorization. For every algorithm, identify input, output, invariant, complexity, and edge cases.",
-      "Practice plan: implement binary search, merge sort, breadth-first search, and dynamic programming examples from scratch.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Atomic Habits",
-    author: "James Clear",
-    genre: "Productivity",
-    popular: true,
-    availability: "preview-guide",
-    tags: ["habits", "self help", "discipline", "study routine"],
-    desc: "A practical behavior-change system for building consistent routines.",
-    reader: [
-      "Reading guide: focus on the habit loop: cue, craving, response, and reward. For students, the most useful application is making study actions easier to start.",
-      "Study task: choose one weak subject and create a two-minute starting habit, such as opening notes and solving one example.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    genre: "History",
-    popular: true,
-    availability: "preview-guide",
-    tags: ["history", "humanity", "culture", "civilization"],
-    desc: "A broad history of humankind, culture, cooperation, and social change.",
-    reader: [
-      "Reading guide: treat this as a big-picture history argument. Track claims, evidence, and examples separately.",
-      "Study focus: create a timeline of major transitions: cognitive, agricultural, imperial, scientific, and industrial.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Thinking, Fast and Slow",
-    author: "Daniel Kahneman",
-    genre: "Psychology",
-    popular: true,
-    availability: "preview-guide",
-    tags: ["psychology", "decision making", "bias", "mind"],
-    desc: "A guide to quick intuitive thinking, slow reasoning, and cognitive bias.",
-    reader: [
-      "Reading guide: separate System 1 automatic thinking from System 2 deliberate thinking. Notice how bias affects exams, planning, and career decisions.",
-      "Practice: write one recent decision and identify whether it was mostly fast intuition or slow analysis.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "The Richest Man in Babylon",
-    author: "George S. Clason",
-    genre: "Finance",
-    popular: false,
-    availability: "public-domain",
-    tags: ["money", "saving", "personal finance", "business"],
-    desc: "Simple financial lessons told through parables about saving and wealth building.",
-    reader: [
-      "This book teaches personal finance through short parables. Its core lessons are simple: save regularly, control spending, invest carefully, and build earning ability.",
-      "Reading focus: convert each parable into one action rule. Keep the rule short and measurable.",
-      "Practice: create a student budget with saving, learning, transport, food, and emergency categories.",
-    ],
-  },
-  {
-    title: "Business Adventures",
-    author: "John Brooks",
-    genre: "Business",
-    popular: false,
-    availability: "preview-guide",
-    tags: ["business", "companies", "management", "case studies"],
-    desc: "Business case stories about markets, leadership, mistakes, and decision making.",
-    reader: [
-      "Reading guide: study each story as a business case. Identify the decision, risk, stakeholders, and final result.",
-      "Practice: write a one-page case brief with problem, options, decision, outcome, and lesson.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "The Blue Fairy Book",
-    author: "Andrew Lang",
-    genre: "Fantasy",
-    popular: false,
-    availability: "public-domain",
-    tags: ["fairy tales", "fantasy", "stories", "children"],
-    desc: "A classic collection of fairy tales, fantasy stories, and folklore.",
-    reader: [
-      "The Blue Fairy Book gathers fantasy tales with quests, tests, helpers, and moral choices. It is useful for vocabulary, imagination, and story structure.",
-      "Reading focus: identify the hero, challenge, helper, turning point, and lesson in each story.",
-      "Creative task: rewrite one tale in a modern school or city setting.",
-    ],
-  },
-  {
-    title: "A Child's Garden of Verses",
-    author: "Robert Louis Stevenson",
-    genre: "Children",
-    popular: false,
-    availability: "public-domain",
-    tags: ["poems", "children", "rhythm", "simple english"],
-    desc: "A poetry collection with simple imagery, rhythm, childhood, and imagination.",
-    reader: [
-      "This collection is helpful for pronunciation and rhythm practice. The poems are short, visual, and easy to read aloud.",
-      "Reading focus: clap the rhythm, underline rhyming words, and practice clear pronunciation.",
-      "Speaking task: read one stanza aloud twice, first slowly and then naturally.",
-    ],
-  },
-  {
-    title: "Meditations",
-    author: "Marcus Aurelius",
-    genre: "Philosophy",
-    popular: true,
-    availability: "public-domain",
-    tags: ["stoic", "discipline", "reflection", "life"],
-    desc: "Personal reflections on discipline, responsibility, emotion, and character.",
-    reader: [
-      "Meditations is a collection of private reflections. It is best read slowly, one idea at a time.",
-      "Reading focus: look for ideas about what is in your control and what is not in your control.",
-      "Practice: write a short daily reflection about one difficulty and one controlled action you can take.",
-    ],
-  },
-  {
-    title: "The Autobiography of Benjamin Franklin",
-    author: "Benjamin Franklin",
-    genre: "Biography",
-    popular: false,
-    availability: "public-domain",
-    tags: ["life story", "self improvement", "history", "leadership"],
-    desc: "A life story focused on learning, habits, work, and public service.",
-    reader: [
-      "This autobiography shows how Franklin built skills through reading, writing, practical work, and deliberate habits.",
-      "Reading focus: track the habits he builds and the opportunities created by communication skills.",
-      "Study task: choose one skill and design a four-week improvement routine.",
-    ],
-  },
-  {
-    title: "Selected Poems",
-    author: "Emily Dickinson",
-    genre: "Poetry",
-    popular: false,
-    availability: "public-domain",
-    tags: ["poetry", "short poems", "imagery", "meaning"],
-    desc: "Compact poems known for compressed meaning, imagery, and surprising turns.",
-    reader: [
-      "Dickinson's poems often say a lot with very few words. They are useful for close reading and interpretation practice.",
-      "Reading focus: identify the central image, emotional tone, and final turn in meaning.",
-      "Practice: paraphrase a poem in plain English, then write one question it leaves open.",
-    ],
-  },
-  {
-    title: "Principles of Economics",
-    author: "N. Gregory Mankiw",
-    genre: "Economics",
-    popular: false,
-    availability: "preview-guide",
-    tags: ["economics", "markets", "trade", "policy"],
-    desc: "An introduction to economic principles, markets, incentives, and policy.",
-    reader: [
-      "Reading guide: focus on incentives, opportunity cost, supply and demand, and trade-offs. Draw simple graphs instead of only reading definitions.",
-      "Practice: explain one real-life decision using opportunity cost.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Campbell Biology",
-    author: "Urry et al.",
-    genre: "Biology",
-    popular: false,
-    availability: "preview-guide",
-    tags: ["biology", "cells", "genetics", "life science"],
-    desc: "A detailed biology reference for cells, genetics, evolution, and organisms.",
-    reader: [
-      "Reading guide: biology is easier when you connect structure and function. For every diagram, ask what each part does.",
-      "Study focus: make concept maps for cells, DNA, enzymes, evolution, and ecosystems.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-  {
-    title: "Organic Chemistry",
-    author: "Morrison & Boyd",
-    genre: "Chemistry",
-    popular: false,
-    availability: "preview-guide",
-    tags: ["chemistry", "reactions", "organic", "science"],
-    desc: "A chemistry guide for structure, reactions, mechanisms, and practice problems.",
-    reader: [
-      "Reading guide: do not memorize reactions alone. Track electron movement, functional groups, reagents, and reaction conditions.",
-      "Practice: make reaction cards with reactant, reagent, product, mechanism clue, and common mistake.",
-      "Note: this app provides a study guide/preview, not the copyrighted full text.",
-    ],
-  },
-];
+function authorLine(book: LibraryBook) {
+  return book.authors.filter(Boolean).join(", ") || "Unknown author";
+}
 
-const genres = ["All", ...Array.from(new Set(books.map((book) => book.genre))).sort()];
-
-function fileSafeName(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+function subjectPreview(book: LibraryBook) {
+  const items = [...book.subjects, ...book.bookshelves].filter(Boolean);
+  return items.slice(0, 3);
 }
 
 export default function BooksPage() {
   const [query, setQuery] = useState("");
-  const [genre, setGenre] = useState("All");
-  const [activeBook, setActiveBook] = useState(books[0]);
+  const [category, setCategory] = useState("all");
+  const [page, setPage] = useState(1);
+  const [books, setBooks] = useState<LibraryBook[]>([]);
+  const [activeBook, setActiveBook] = useState<LibraryBook | null>(null);
+  const [readerText, setReaderText] = useState("");
+  const [readerState, setReaderState] = useState<ReaderState>("idle");
+  const [readerTruncated, setReaderTruncated] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [nextPage, setNextPage] = useState<number | null>(null);
+  const [previousPage, setPreviousPage] = useState<number | null>(null);
+  const [sourceLabel, setSourceLabel] = useState("Project Gutenberg");
   const readerRef = useRef<HTMLDivElement | null>(null);
 
-  const filteredBooks = useMemo(() => {
-    const searchable = query.trim().toLowerCase();
-    return books.filter((book) => {
-      const matchesQuery = !searchable || [book.title, book.author, book.genre, book.desc, ...book.tags].join(" ").toLowerCase().includes(searchable);
-      const matchesGenre = genre === "All" || book.genre === genre;
-      return matchesQuery && matchesGenre;
-    });
-  }, [genre, query]);
+  const categoryInfo = useMemo(() => bookCategories.find((item) => item.id === category) || bookCategories[0], [category]);
+  const popularBooks = useMemo(() => books.slice(0, 4), [books]);
 
-  const recommendedBooks = useMemo(() => {
-    if (genre !== "All") return books.filter((book) => book.genre === genre).slice(0, 4);
-    return books.filter((book) => book.popular).slice(0, 4);
-  }, [genre]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const params = new URLSearchParams({
+          category,
+          page: String(page),
+        });
 
-  const openReader = (book: Book) => {
+        if (query.trim()) params.set("q", query.trim());
+
+        const response = await fetch(`/api/books?${params.toString()}`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load the library right now.");
+        }
+
+        const data = (await response.json()) as BookSearchResponse;
+        setBooks(data.books);
+        setNextPage(data.nextPage);
+        setPreviousPage(data.previousPage);
+        setSourceLabel(data.source);
+
+        setActiveBook((current) => current || data.books[0] || null);
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          toast.error("Book search failed", {
+            description: error instanceof Error ? error.message : "Try again in a moment.",
+          });
+        }
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [category, page, query]);
+
+  const openReader = async (book: LibraryBook) => {
     setActiveBook(book);
+    setReaderText("");
+    setReaderTruncated(false);
+    setReaderState("loading");
     requestAnimationFrame(() => readerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+
+    try {
+      const response = await fetch(`/api/books/${book.id}/read`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "This book could not be opened in the reader.");
+      }
+
+      setReaderText(data.text);
+      setReaderTruncated(Boolean(data.truncated));
+      setReaderState("ready");
+    } catch (error) {
+      setReaderState("error");
+      setReaderText(error instanceof Error ? error.message : "This book could not be opened in the reader.");
+    }
   };
 
-  const saveBook = async (book: Book) => {
+  const saveBook = async (book: LibraryBook) => {
     try {
       await addLibraryItem({
         type: "book",
         title: book.title,
         source: "Books",
-        content: `${book.title}\nby ${book.author}\nGenre: ${book.genre}\n\n${book.reader.join("\n\n")}`,
+        content: [
+          book.title,
+          `by ${authorLine(book)}`,
+          `Source: ${book.sourceUrl}`,
+          `Read online: ${book.htmlUrl || book.sourceUrl}`,
+          `Download EPUB/TXT: ${book.epubUrl || book.textUrl || book.sourceUrl}`,
+          "",
+          getBookDescription(book),
+        ].join("\n"),
       });
+
       toast.success("Book saved", {
         description: "Added to Saved Books in your library.",
       });
@@ -353,88 +135,64 @@ export default function BooksPage() {
     }
   };
 
-  const downloadBookInfo = async (book: Book) => {
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 48;
-    const maxWidth = pageWidth - margin * 2;
-    let y = 54;
+  const downloadPdf = (book: LibraryBook) => {
+    window.location.href = `/api/books/${book.id}/download`;
+  };
 
-    const ensureSpace = (height = 22) => {
-      if (y + height > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
-      }
-    };
-
-    const addWrapped = (text: string, fontSize = 11, lineGap = 16) => {
-      doc.setFontSize(fontSize);
-      const lines = doc.splitTextToSize(text, maxWidth);
-      lines.forEach((line: string) => {
-        ensureSpace(lineGap);
-        doc.text(line, margin, y);
-        y += lineGap;
-      });
-    };
-
-    doc.setTextColor(20, 20, 20);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text(book.title, margin, y);
-    y += 25;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text(`by ${book.author}`, margin, y);
-    y += 18;
-    doc.text(`Genre: ${book.genre}`, margin, y);
-    y += 18;
-    doc.text(`Availability: ${book.availability === "public-domain" ? "Public-domain reading pack" : "Study guide / preview pack"}`, margin, y);
-    y += 28;
-
-    doc.setFont("helvetica", "bold");
-    addWrapped("Overview", 13, 18);
-    doc.setFont("helvetica", "normal");
-    addWrapped(book.desc);
-    y += 10;
-
-    doc.setFont("helvetica", "bold");
-    addWrapped("Read Online Content", 13, 18);
-    doc.setFont("helvetica", "normal");
-    book.reader.forEach((paragraph, index) => {
-      addWrapped(`${index + 1}. ${paragraph}`, 11, 16);
-      y += 8;
-    });
-
-    doc.setFont("helvetica", "italic");
-    addWrapped(
-      book.availability === "public-domain"
-        ? "This PDF contains the app reading pack for a public-domain title. Add a full public-domain text source if you want full-book downloads."
-        : "This PDF contains a study guide and preview only. The full copyrighted book is not redistributed by this app.",
-      10,
-      14,
-    );
-
-    doc.save(`${fileSafeName(book.title)}.pdf`);
+  const downloadOriginal = (book: LibraryBook) => {
+    window.location.href = `/api/books/${book.id}/download?format=original`;
   };
 
   return (
-    <AuthGate title="Login required for Books" description="Login to search, save, read, and download book resources.">
+    <AuthGate title="Login required for Books" description="Login to search, save, read online, and download offline book resources.">
       <div className="mx-auto w-full max-w-7xl">
-        <PageHeader icon={BookMarked} title="Books" description="Search study books, novels, poems, classics, business, and more" />
+        <PageHeader icon={BookMarked} title="Books" description="A public-domain online/offline library powered by Project Gutenberg sources" />
 
-        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search books, novels, poems, authors, genres, or topics..." className="pl-10" />
+            <Input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+                setActiveBook(null);
+                setReaderState("idle");
+              }}
+              placeholder="Search novels, Urdu, poems, suspense, kids stories, drama, country, action, romance..."
+              className="pl-10"
+            />
           </div>
-          <Select value={genre} onValueChange={setGenre}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={category}
+            onValueChange={(value) => {
+              setCategory(value);
+              setPage(1);
+              setActiveBook(null);
+              setReaderState("idle");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {genres.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+              {bookCategories.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="mb-6 rounded-md border border-border bg-background p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-semibold text-foreground">{categoryInfo.label}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{categoryInfo.description}</p>
+            </div>
+            <p className="text-xs font-medium text-muted-foreground">{sourceLabel}</p>
+          </div>
         </div>
 
         <section className="mb-6">
@@ -443,68 +201,157 @@ export default function BooksPage() {
             <h2 className="font-display font-semibold text-foreground">Popular & Recommended</h2>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {recommendedBooks.map((book) => (
-              <button key={book.title} onClick={() => openReader(book)} className="glass-card p-4 text-left transition-all hover:-translate-y-0.5">
-                <span className="mb-2 inline-flex rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{book.genre}</span>
-                <h3 className="font-display font-semibold text-foreground">{book.title}</h3>
-                <p className="mt-1 text-xs text-primary">by {book.author}</p>
+            {popularBooks.map((book) => (
+              <button key={`popular-${book.id}`} onClick={() => void openReader(book)} className="glass-card p-4 text-left transition-all hover:-translate-y-0.5">
+                <span className="mb-2 inline-flex rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                  {book.categoryLabel}
+                </span>
+                <h3 className="line-clamp-2 font-display font-semibold text-foreground">{book.title}</h3>
+                <p className="mt-1 line-clamp-1 text-xs text-primary">by {authorLine(book)}</p>
               </button>
             ))}
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {filteredBooks.map((book) => (
-              <div key={book.title} className="glass-card p-5">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{book.genre}</span>
-                  <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                    {book.availability === "public-domain" ? "Public domain" : "Preview guide"}
-                  </span>
-                </div>
-                <h3 className="font-display font-semibold text-foreground">{book.title}</h3>
-                <p className="mt-1 text-sm font-medium text-primary">by {book.author}</p>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{book.desc}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openReader(book)}>
-                    <BookOpen className="mr-2 h-4 w-4" /> Read Online
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => saveBook(book)}>
-                    <BookmarkPlus className="mr-2 h-4 w-4" /> Save
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => downloadBookInfo(book)}>
-                    <Download className="mr-2 h-4 w-4" /> PDF
-                  </Button>
-                </div>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]">
+          <div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display font-semibold text-foreground">Library Results</h2>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={!previousPage || isSearching} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                  Previous
+                </Button>
+                <span className="min-w-12 text-center text-xs font-medium text-muted-foreground">Page {page}</span>
+                <Button variant="outline" size="sm" disabled={!nextPage || isSearching} onClick={() => setPage((current) => current + 1)}>
+                  Next
+                </Button>
               </div>
-            ))}
+            </div>
+
+            {isSearching ? (
+              <div className="glass-card flex min-h-[260px] items-center justify-center p-6">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {books.map((book) => (
+                  <article key={book.id} className="glass-card overflow-hidden">
+                    <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-4 p-4">
+                      <div className="aspect-[2/3] overflow-hidden rounded-md border border-border bg-secondary">
+                        {book.coverUrl ? (
+                          <img src={book.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <BookOpen className="h-8 w-8 text-muted-foreground/50" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          <span className="inline-flex rounded bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                            {book.categoryLabel}
+                          </span>
+                          <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                            {book.estimatedPages || "Full book"}
+                          </span>
+                        </div>
+                        <h3 className="line-clamp-2 font-display font-semibold text-foreground">{book.title}</h3>
+                        <p className="mt-1 line-clamp-1 text-sm font-medium text-primary">by {authorLine(book)}</p>
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{getBookDescription(book)}</p>
+                      </div>
+                    </div>
+                    <div className="border-t border-border px-4 py-3">
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {subjectPreview(book).map((subject) => (
+                          <span key={`${book.id}-${subject}`} className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                            {subject}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => void openReader(book)}>
+                          <BookOpen className="mr-2 h-4 w-4" /> Read Online
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => downloadPdf(book)}>
+                          <FileDown className="mr-2 h-4 w-4" /> PDF
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => downloadOriginal(book)}>
+                          <Download className="mr-2 h-4 w-4" /> Book
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => saveBook(book)}>
+                          <BookmarkPlus className="mr-2 h-4 w-4" /> Save
+                        </Button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
 
           <aside ref={readerRef} className="glass-card p-5 xl:sticky xl:top-20 xl:self-start">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display text-xl font-semibold text-foreground">{activeBook.title}</h2>
-                <p className="mt-1 text-sm text-primary">by {activeBook.author}</p>
+            {activeBook ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-display text-xl font-semibold text-foreground">{activeBook.title}</h2>
+                    <p className="mt-1 text-sm text-primary">by {authorLine(activeBook)}</p>
+                  </div>
+                  <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{activeBook.categoryLabel}</span>
+                </div>
+
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => void openReader(activeBook)} disabled={readerState === "loading"}>
+                    {readerState === "loading" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                    Load Full Reader
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => downloadPdf(activeBook)}>
+                    <FileDown className="mr-2 h-4 w-4" /> PDF
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => downloadOriginal(activeBook)}>
+                    <Download className="mr-2 h-4 w-4" /> Offline Book
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={activeBook.htmlUrl || activeBook.sourceUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" /> Source
+                    </a>
+                  </Button>
+                </div>
+
+                <div className="max-h-[660px] overflow-y-auto rounded-md border border-border bg-background p-4">
+                  {readerState === "loading" ? (
+                    <div className="flex min-h-[360px] items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : readerState === "ready" ? (
+                    <>
+                      {readerTruncated ? (
+                        <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm leading-6 text-yellow-900">
+                          This is a very large book, so the in-app reader shows a large readable section. Use Offline Book for the complete original file.
+                        </div>
+                      ) : null}
+                      <pre className="whitespace-pre-wrap break-words font-serif text-sm leading-7 text-foreground">{readerText}</pre>
+                    </>
+                  ) : readerState === "error" ? (
+                    <div className="text-sm leading-6 text-muted-foreground">
+                      <p>{readerText}</p>
+                      <a className="mt-3 inline-flex items-center font-medium text-primary hover:underline" href={activeBook.sourceUrl} target="_blank" rel="noreferrer">
+                        Open Project Gutenberg source <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 text-sm leading-7 text-muted-foreground">
+                      <p>{getBookDescription(activeBook)}</p>
+                      <p>Click Read Online to load the full public-domain text inside the reader. Use PDF or Offline Book to download it for later reading.</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex min-h-[360px] items-center justify-center text-center">
+                <p className="max-w-sm text-sm leading-6 text-muted-foreground">Search the library and open any public-domain title to read or download.</p>
               </div>
-              <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{activeBook.genre}</span>
-            </div>
-            <div className="max-h-[620px] overflow-y-auto rounded-md border border-border bg-background p-4">
-              <p className="mb-4 text-sm font-medium text-foreground">Online Reader</p>
-              <div className="space-y-4 text-sm leading-7 text-muted-foreground">
-                {activeBook.reader.map((paragraph, index) => (
-                  <p key={`${activeBook.title}-${index}`}>{paragraph}</p>
-                ))}
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => saveBook(activeBook)}>
-                  <BookmarkPlus className="mr-2 h-4 w-4" /> Save
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => downloadBookInfo(activeBook)}>
-                  <Download className="mr-2 h-4 w-4" /> Download PDF
-                </Button>
-              </div>
-            </div>
+            )}
           </aside>
         </div>
       </div>
