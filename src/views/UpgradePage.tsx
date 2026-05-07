@@ -15,6 +15,7 @@ import { getSubscriptionProfile, subscriptionPlans, type SubscriptionPlan } from
 
 type PaidPlan = "standard" | "advanced";
 type LocalMethod = "easypaisa" | "jazzcash" | "bank";
+type CheckoutProvider = "stripe" | "lemon-squeezy";
 
 const paidPlans: Array<{
   id: PaidPlan;
@@ -57,7 +58,7 @@ export default function UpgradePage() {
   const [currency, setCurrency] = useState("PKR");
   const [transactionId, setTransactionId] = useState("");
   const [note, setNote] = useState("");
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | null>(null);
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
 
   const profile = useMemo(() => getSubscriptionProfile({
@@ -72,13 +73,13 @@ export default function UpgradePage() {
     setAmount(planAmount(plan));
   };
 
-  const handleStripeCheckout = async () => {
-    setIsCheckingOut(true);
+  const handleCheckout = async (provider: CheckoutProvider) => {
+    setCheckoutProvider(provider);
     try {
       const response = await fetch("/api/subscriptions/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: selectedPlan, provider: "stripe" }),
+        body: JSON.stringify({ plan: selectedPlan, provider }),
       });
       const payload = await response.json().catch(() => null);
 
@@ -96,7 +97,7 @@ export default function UpgradePage() {
         description: error instanceof Error ? error.message : "Please try local payment or contact admin.",
       });
     } finally {
-      setIsCheckingOut(false);
+      setCheckoutProvider(null);
     }
   };
 
@@ -219,12 +220,18 @@ export default function UpgradePage() {
                 <h2 className="font-display text-lg font-semibold text-foreground">International Payment</h2>
               </div>
               <p className="mb-4 text-sm leading-6 text-muted-foreground">
-                Use Stripe for secure monthly subscription checkout. Stripe will work after `STRIPE_SECRET_KEY` and plan price IDs are configured.
+                Use Lemon Squeezy or Stripe for secure monthly subscription checkout. Lemon Squeezy is the recommended global provider for Pakistan-based setup.
               </p>
-              <Button className="gradient-primary w-full border-0" onClick={handleStripeCheckout} disabled={isCheckingOut || profile.isAdmin}>
-                {isCheckingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                Pay with Stripe
-              </Button>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Button className="gradient-primary w-full border-0" onClick={() => handleCheckout("lemon-squeezy")} disabled={Boolean(checkoutProvider) || profile.isAdmin}>
+                  {checkoutProvider === "lemon-squeezy" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <WalletCards className="mr-2 h-4 w-4" />}
+                  Pay with Lemon Squeezy
+                </Button>
+                <Button className="w-full" variant="outline" onClick={() => handleCheckout("stripe")} disabled={Boolean(checkoutProvider) || profile.isAdmin}>
+                  {checkoutProvider === "stripe" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                  Pay with Stripe
+                </Button>
+              </div>
             </section>
           </section>
 
@@ -261,7 +268,7 @@ export default function UpgradePage() {
               <div className="space-y-3 text-sm leading-6 text-muted-foreground">
                 <p>Select your plan, pay through Easypaisa, JazzCash, or bank transfer, then submit transaction ID here.</p>
                 <p>Admin will verify the payment and activate your subscription for one month.</p>
-                <p>For Stripe, checkout activates automatically once webhook keys are configured.</p>
+                <p>For Lemon Squeezy or Stripe, checkout activates automatically once webhook keys are configured.</p>
               </div>
             </section>
           </aside>

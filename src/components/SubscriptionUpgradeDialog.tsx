@@ -111,8 +111,8 @@ export function SubscriptionUpgradeDialog() {
               <h3 className="font-display font-semibold text-foreground">International Payments</h3>
             </div>
             <div className="space-y-2 text-sm leading-6 text-muted-foreground">
-              <p>Stripe, PayPal, Paddle, or Lemon Squeezy can be connected for recurring subscriptions.</p>
-              <p>Admins can also activate plans manually from the dashboard.</p>
+              <p>Lemon Squeezy and Stripe support recurring subscription checkout.</p>
+              <p>Admins can still activate plans manually from the dashboard when needed.</p>
             </div>
           </section>
         </div>
@@ -123,7 +123,7 @@ export function SubscriptionUpgradeDialog() {
             <span className="text-sm font-semibold text-foreground">Admin verification flow</span>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">
-            The dashboard now supports plan changes and payment verification status, so local payments can be approved manually while global payment gateway keys are added later.
+            The dashboard supports manual local payment approval, while Lemon Squeezy and Stripe webhooks can activate global subscriptions automatically.
           </p>
         </div>
 

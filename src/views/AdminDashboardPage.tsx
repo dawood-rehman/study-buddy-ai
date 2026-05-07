@@ -1002,7 +1002,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="rounded-md border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
                         <h3 className="mb-2 font-display font-semibold text-foreground">International</h3>
-                        <p>Stripe, PayPal, Paddle, and Lemon Squeezy records can be tracked here. Automatic recurring activation can be connected later through provider webhooks.</p>
+                        <p>Stripe and Lemon Squeezy records can be tracked here when provider webhooks activate subscriptions automatically.</p>
                       </div>
                     </div>
                   </section>
