@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 
 type PracticeLevel = "simple" | "tough" | "advanced";
 
@@ -58,8 +58,9 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
 
     setIsGenerating(true);
     setGrade(null);
+    setTest("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "quiz",
         language,
         prompt: [
@@ -70,6 +71,8 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
         ].join("\n"),
         context: material,
         options: { mode: "practice-test", level, sourceTitle },
+      }, {
+        onContent: setTest,
       });
 
       setTest(result.content);
@@ -97,8 +100,9 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
     }
 
     setIsChecking(true);
+    setGrade("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "quiz",
         language,
         prompt: [
@@ -113,6 +117,8 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
           `Student answers:\n${answers}`,
         ].join("\n\n---\n\n"),
         options: { mode: "practice-test-marking", level, sourceTitle },
+      }, {
+        onContent: setGrade,
       });
 
       setGrade(result.content);

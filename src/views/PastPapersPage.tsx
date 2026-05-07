@@ -9,7 +9,7 @@ import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { readTextFromFile } from "@/lib/file-text";
 
 export default function PastPapersPage() {
@@ -37,13 +37,16 @@ export default function PastPapersPage() {
     }
 
     setIsLoading(true);
+    setSolution("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "past-paper",
         language,
         prompt: "Solve this past paper with step-by-step reasoning and final answers.",
         context: paperText,
         modelPreference: "deep",
+      }, {
+        onContent: setSolution,
       });
 
       setSolution(result.content);

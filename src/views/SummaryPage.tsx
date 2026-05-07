@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { readTextFromFile } from "@/lib/file-text";
 
 export default function SummaryPage() {
@@ -39,13 +39,16 @@ export default function SummaryPage() {
     }
 
     setIsLoading(true);
+    setSummary("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "summary",
         language,
         prompt: "Summarize this material for exam preparation.",
         context: textInput,
         options: { summaryType },
+      }, {
+        onContent: setSummary,
       });
 
       setSummary(result.content);

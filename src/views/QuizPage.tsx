@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { readTextFromFile } from "@/lib/file-text";
 
 export default function QuizPage() {
@@ -42,13 +42,16 @@ export default function QuizPage() {
     }
 
     setIsLoading(true);
+    setQuiz("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "quiz",
         language,
         prompt: "Generate a quiz from this study material.",
         context: textInput,
         options: { quizType, difficulty },
+      }, {
+        onContent: setQuiz,
       });
 
       setQuiz(result.content);

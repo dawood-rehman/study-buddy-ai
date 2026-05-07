@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { readTextFromFile } from "@/lib/file-text";
 
 export default function StudyPage() {
@@ -44,13 +44,16 @@ export default function StudyPage() {
     }
 
     setIsLoading(true);
+    setResponse("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "study",
         language,
         prompt,
         context,
         options: { mode },
+      }, {
+        onContent: setResponse,
       });
 
       setResponse(result.content);

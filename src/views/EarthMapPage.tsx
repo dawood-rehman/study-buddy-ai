@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 
 type MapPlace = {
   name: string;
@@ -234,7 +234,7 @@ export default function EarthMapPage() {
     setIsLoading(true);
 
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "study",
         language: "english",
         prompt: [
@@ -248,6 +248,10 @@ export default function EarthMapPage() {
           "Keep it concise but detailed enough for students and travelers.",
         ].join("\n"),
         options: { mode: "earth-map-explorer", place: place.name, region: place.region, focus, latitude: place.latitude, longitude: place.longitude },
+      }, {
+        onContent: (content) => {
+          if (generationIdRef.current === generationId) setResponse(content);
+        },
       });
 
       if (generationIdRef.current !== generationId) return;

@@ -111,6 +111,8 @@ type OpenRouterAttempt = {
   index: number;
 };
 
+type SseWriter = (event: string, data: Record<string, unknown>) => void;
+
 class OpenRouterAttemptError extends Error {
   code: AiErrorCode;
   status: number;
@@ -575,6 +577,183 @@ async function callOpenRouterModel({
   }
 }
 
+function parseStreamingPayload(data: string): OpenRouterPayload | null {
+  try {
+    return data ? JSON.parse(data) as OpenRouterPayload : null;
+  } catch {
+    return null;
+  }
+}
+
+async function streamOpenRouterModel({
+  apiKey,
+  requestBody,
+  model,
+  models,
+  index,
+  writeEvent,
+}: {
+  apiKey: string;
+  requestBody: Omit<Record<string, unknown>, "model">;
+  model: string;
+  models: string[];
+  index: number;
+  writeEvent: SseWriter;
+}): Promise<OpenRouterAttempt> {
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+  const firstChunkTimeout = setTimeout(() => abortController.abort(), ATTEMPT_TIMEOUT_MS);
+  let content = "";
+  let resolvedModel: string | undefined;
+  let latestPayload: OpenRouterPayload | null = null;
+  let sawContent = false;
+
+  try {
+    writeEvent("model", { model, index });
+
+    const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      signal: abortController.signal,
+      headers: buildHeaders(apiKey),
+      body: JSON.stringify({
+        ...requestBody,
+        model,
+        stream: true,
+        provider: {
+          allow_fallbacks: true,
+        },
+      }),
+    });
+
+    if (!openRouterResponse.ok) {
+      const rawText = await openRouterResponse.text();
+      const payload = parseStreamingPayload(rawText);
+      const detail = parseOpenRouterError(payload, rawText || "OpenRouter request failed.");
+      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, models);
+
+      throw new OpenRouterAttemptError({
+        code: mappedError.code,
+        message: mappedError.message,
+        status: openRouterResponse.status,
+        detail,
+        model,
+        retryable: mappedError.retryable,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    if (!openRouterResponse.body) {
+      throw new OpenRouterAttemptError({
+        code: "OPENROUTER_EMPTY_RESPONSE",
+        message: "OpenRouter returned no streaming body.",
+        status: 502,
+        model,
+        retryable: true,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    const reader = openRouterResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+
+        const payload = parseStreamingPayload(data);
+        if (!payload) continue;
+
+        latestPayload = payload;
+        resolvedModel = payload.model || resolvedModel;
+
+        const errorMessage = parseOpenRouterError(payload, "");
+        if (payload.error && errorMessage) {
+          throw new OpenRouterAttemptError({
+            code: "OPENROUTER_SERVER_ERROR",
+            message: errorMessage,
+            status: 502,
+            detail: errorMessage,
+            model,
+            retryable: !sawContent,
+            durationMs: Date.now() - startedAt,
+          });
+        }
+
+        const delta = payload.choices?.[0]?.message?.content || (payload.choices?.[0] as { delta?: { content?: string } } | undefined)?.delta?.content || "";
+        if (!delta) continue;
+
+        if (!sawContent) {
+          sawContent = true;
+          clearTimeout(firstChunkTimeout);
+        }
+
+        content += delta;
+        writeEvent("delta", { delta });
+      }
+    }
+
+    if (!content) {
+      throw new OpenRouterAttemptError({
+        code: "OPENROUTER_EMPTY_RESPONSE",
+        message: "OpenRouter returned an empty streaming response.",
+        status: 502,
+        model,
+        retryable: true,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    return {
+      model,
+      resolvedModel: resolvedModel || model,
+      content,
+      payload: latestPayload,
+      durationMs: Date.now() - startedAt,
+      index,
+    };
+  } catch (error) {
+    if (error instanceof OpenRouterAttemptError) {
+      throw error;
+    }
+
+    if (abortController.signal.aborted) {
+      throw new OpenRouterAttemptError({
+        code: "OPENROUTER_NETWORK_ERROR",
+        message: `${model} did not start streaming after ${Math.round(ATTEMPT_TIMEOUT_MS / 1000)} seconds.`,
+        status: 504,
+        detail: error instanceof Error ? error.message : undefined,
+        model,
+        retryable: !sawContent,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    throw new OpenRouterAttemptError({
+      code: "OPENROUTER_NETWORK_ERROR",
+      message: "Could not reach OpenRouter. Check the network connection and try again.",
+      status: 502,
+      detail: error instanceof Error ? error.message : undefined,
+      model,
+      retryable: !sawContent,
+      durationMs: Date.now() - startedAt,
+    });
+  } finally {
+    clearTimeout(firstChunkTimeout);
+  }
+}
+
 async function runFallbackModels({
   apiKey,
   requestBody,
@@ -643,6 +822,149 @@ async function runFallbackModels({
   });
 }
 
+async function runStreamingFallbackModels({
+  apiKey,
+  requestBody,
+  models,
+  writeEvent,
+}: {
+  apiKey: string;
+  requestBody: Omit<Record<string, unknown>, "model">;
+  models: string[];
+  writeEvent: SseWriter;
+}) {
+  const failures: OpenRouterAttemptError[] = [];
+
+  for (let index = 0; index < models.length; index += 1) {
+    try {
+      return await streamOpenRouterModel({
+        apiKey,
+        requestBody,
+        model: models[index],
+        models,
+        index,
+        writeEvent,
+      });
+    } catch (error) {
+      if (!(error instanceof OpenRouterAttemptError)) throw error;
+      failures.push(error);
+      if (!error.retryable) throw error;
+      writeEvent("fallback", { model: models[index], code: error.code, message: error.message });
+    }
+  }
+
+  const firstAuthOrBadRequest = failures.find((failure) => !failure.retryable);
+  throw firstAuthOrBadRequest || failures[0] || new Error("OpenRouter streaming fallback failed.");
+}
+
+function createStreamingAiResponse({
+  apiKey,
+  requestBody,
+  modelSelection,
+  currentUser,
+  parsedRequest,
+  startedAt,
+}: {
+  apiKey: string;
+  requestBody: Omit<Record<string, unknown>, "model">;
+  modelSelection: ReturnType<typeof selectOpenRouterModel>;
+  currentUser: UserDocument | null;
+  parsedRequest: ParsedAiRequest;
+  startedAt: number;
+}) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const writeEvent: SseWriter = (event, data) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
+      try {
+        writeEvent("start", {
+          modelKey: modelSelection.key,
+          modelReason: modelSelection.reason,
+          fallbackModels: modelSelection.models,
+        });
+
+        const attempt = await runStreamingFallbackModels({
+          apiKey,
+          requestBody,
+          models: modelSelection.models,
+          writeEvent,
+        });
+
+        await logAiUsage({
+          userId: currentUser?._id,
+          email: currentUser?.email,
+          task: parsedRequest.task,
+          language: parsedRequest.language,
+          modelKey: modelSelection.key,
+          requestedModels: modelSelection.models,
+          resolvedModel: attempt.resolvedModel,
+          status: "success",
+          subscriptionPlan: getSubscriptionPlanForLog(currentUser),
+          durationMs: Date.now() - startedAt,
+          promptChars: parsedRequest.prompt.length,
+          contextChars: parsedRequest.context?.length || 0,
+          estimatedInputTokens: estimateTokens(`${parsedRequest.prompt}\n${parsedRequest.context || ""}`),
+          estimatedOutputTokens: estimateTokens(attempt.content),
+          reportedTotalTokens: attempt.payload?.usage?.total_tokens,
+          createdAt: new Date(),
+        });
+
+        writeEvent("done", {
+          content: attempt.content,
+          model: attempt.resolvedModel || attempt.model,
+          modelKey: modelSelection.key,
+          modelReason: modelSelection.reason,
+          fallbackModels: modelSelection.models,
+          modelFallbackUsed: attempt.index > 0 || attempt.resolvedModel !== modelSelection.model,
+          responseTimeMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        const attemptError = error instanceof OpenRouterAttemptError ? error : null;
+
+        await logAiUsage({
+          userId: currentUser?._id,
+          email: currentUser?.email,
+          task: parsedRequest.task,
+          language: parsedRequest.language,
+          modelKey: modelSelection.key,
+          requestedModels: modelSelection.models,
+          status: "failed",
+          subscriptionPlan: getSubscriptionPlanForLog(currentUser),
+          durationMs: Date.now() - startedAt,
+          promptChars: parsedRequest.prompt.length,
+          contextChars: parsedRequest.context?.length || 0,
+          estimatedInputTokens: estimateTokens(`${parsedRequest.prompt}\n${parsedRequest.context || ""}`),
+          estimatedOutputTokens: 0,
+          errorCode: attemptError?.code || "AI_SERVER_ERROR",
+          errorDetail: attemptError?.detail || (error instanceof Error ? error.message : undefined),
+          createdAt: new Date(),
+        });
+
+        writeEvent("error", {
+          code: attemptError?.code || "AI_SERVER_ERROR",
+          message: attemptError?.message || "Unexpected AI server error.",
+          detail: attemptError?.detail || (error instanceof Error ? error.message : undefined),
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   const apiKeyOrResponse = getOpenRouterApiKey();
 
@@ -655,6 +977,7 @@ export async function POST(request: NextRequest) {
   let currentUser: UserDocument | null = null;
 
   try {
+    const wantsStream = request.nextUrl.searchParams.get("stream") === "1" || request.headers.get("accept")?.includes("text/event-stream");
     const json = await request.json();
     const parsed = aiRequestSchema.safeParse(json);
 
@@ -706,6 +1029,17 @@ export async function POST(request: NextRequest) {
       top_p: 0.9,
       max_tokens: getMaxTokens(task, options),
     };
+
+    if (wantsStream) {
+      return createStreamingAiResponse({
+        apiKey: apiKeyOrResponse,
+        requestBody,
+        modelSelection,
+        currentUser,
+        parsedRequest,
+        startedAt,
+      });
+    }
 
     const attempt = await runFallbackModels({
       apiKey: apiKeyOrResponse,

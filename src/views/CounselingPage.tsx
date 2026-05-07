@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 
 type CounselingMode = "planner" | "career" | "companies";
 
@@ -66,8 +66,9 @@ export default function CounselingPage() {
     }
 
     setIsLoading(true);
+    setPlan("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "counseling",
         language,
         prompt: modeMeta[mode].prompt,
@@ -75,6 +76,8 @@ export default function CounselingPage() {
           .map(([key, value]) => `${key}: ${value || "Not provided"}`)
           .join("\n"),
         options: { counselingMode: mode },
+      }, {
+        onContent: setPlan,
       });
 
       setPlan(result.content);

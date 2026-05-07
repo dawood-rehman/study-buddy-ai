@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 import { BookSearchResponse, LibraryBook, bookCategories, bookLanguages, getBookDescription } from "@/lib/books";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { addLibraryItem } from "@/lib/library-store";
 
 type ReaderState = "idle" | "loading" | "ready" | "pdf" | "error";
@@ -177,6 +177,7 @@ export default function BooksPage() {
     }
 
     setIsAssistantLoading(true);
+    setAssistantReply("");
     try {
       const params = new URLSearchParams({
         q: assistantPrompt,
@@ -196,7 +197,7 @@ export default function BooksPage() {
         source: book.source,
       }));
 
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "study",
         language: "english",
         prompt: [
@@ -208,6 +209,8 @@ export default function BooksPage() {
         ].join("\n"),
         context: JSON.stringify({ currentCategory: categoryInfo.label, currentLanguage: languageInfo.label, availableMatches: matches }, null, 2),
         options: { mode: "book-assistant", source: data.source },
+      }, {
+        onContent: setAssistantReply,
       });
 
       setAssistantReply(result.content);

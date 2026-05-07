@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { readTextFromFile } from "@/lib/file-text";
 
 export default function GeneralAiPage() {
@@ -38,8 +38,9 @@ export default function GeneralAiPage() {
     }
 
     setIsLoading(true);
+    setResponse("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "study",
         language,
         prompt: [
@@ -50,6 +51,8 @@ export default function GeneralAiPage() {
         ].join("\n"),
         context: fileContext,
         options: { mode: "general-ai", output: "structured-downloadable-ready" },
+      }, {
+        onContent: setResponse,
       });
 
       setResponse(result.content);

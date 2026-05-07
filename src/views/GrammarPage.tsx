@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 
 const grammarFoundations = [
   { id: "parts-of-speech", title: "Parts of Speech", desc: "Nouns, pronouns, verbs, adjectives, adverbs, and connectors" },
@@ -41,8 +41,9 @@ export default function GrammarPage() {
 
   const handleGenerateLesson = async () => {
     setIsLessonLoading(true);
+    setLesson("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "grammar",
         language: "english",
         prompt: [
@@ -51,6 +52,8 @@ export default function GrammarPage() {
           "Use clear headings and interactive tasks.",
         ].join(" "),
         options: { topic: selectedTopic.title, scope: selectedTopic.desc },
+      }, {
+        onContent: setLesson,
       });
 
       setLesson(result.content);
@@ -73,8 +76,9 @@ export default function GrammarPage() {
     }
 
     setIsTutorLoading(true);
+    setTutorReply("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "grammar",
         language: "english",
         prompt: [
@@ -84,6 +88,8 @@ export default function GrammarPage() {
           `Student message: ${tutorInput}`,
         ].join("\n"),
         options: { mode: "ai-english-tutor", focus: ["grammar", "pronunciation", "vocabulary", "fluency", "confidence"] },
+      }, {
+        onContent: setTutorReply,
       });
 
       setTutorReply(result.content);
@@ -101,8 +107,9 @@ export default function GrammarPage() {
 
   const handleGenerateRoadmap = async () => {
     setIsRoadmapLoading(true);
+    setRoadmap("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "grammar",
         language: "english",
         prompt: [
@@ -113,6 +120,8 @@ export default function GrammarPage() {
           "Make it beginner-friendly, practical, and structured.",
         ].join("\n"),
         options: { mode: "grammar-roadmap", currentState, roadmapGoals },
+      }, {
+        onContent: setRoadmap,
       });
 
       setRoadmap(result.content);

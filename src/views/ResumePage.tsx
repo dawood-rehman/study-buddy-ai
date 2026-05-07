@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { getErrorMessage, requestAi } from "@/lib/ai-client";
+import { getErrorMessage, requestAiStream } from "@/lib/ai-client";
 import { useAuth } from "@/lib/auth-context";
 import { readTextFromFile } from "@/lib/file-text";
 import { getSubscriptionProfile } from "@/lib/subscriptions";
@@ -251,8 +251,9 @@ export default function ResumePage() {
     }
 
     setIsAnalyzing(true);
+    setAtsAnalysis("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "resume",
         language: "english",
         modelPreference: "deep",
@@ -262,6 +263,8 @@ export default function ResumePage() {
           "Be specific and practical.",
         ].join(" "),
         context: resumeText,
+      }, {
+        onContent: setAtsAnalysis,
       });
 
       setAtsAnalysis(result.content);
@@ -289,14 +292,17 @@ export default function ResumePage() {
     }
 
     setIsGenerating(true);
+    setAiSuggestion("");
     try {
-      const result = await requestAi({
+      const result = await requestAiStream({
         task: "resume",
         language: "english",
         modelPreference: "deep",
         prompt:
           "Improve this resume for ATS screening. Rewrite weak bullets with action verbs, measurable impact, and concise wording. Keep it truthful and do not invent companies, dates, or credentials.",
         context: JSON.stringify(data, null, 2),
+      }, {
+        onContent: setAiSuggestion,
       });
 
       setAiSuggestion(result.content);
