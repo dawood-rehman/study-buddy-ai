@@ -99,7 +99,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (format === "original") {
     const originalUrl = book.pdfUrl || book.epubUrl || book.textUrl || book.htmlUrl || book.sourceUrl;
     if (!originalUrl) return new Response("No original download source is available for this book.", { status: 404 });
-    return Response.redirect(originalUrl, 302);
+    const redirectUrl = originalUrl.startsWith("/api/books/files/") ? `${originalUrl}?download=1` : originalUrl;
+    return Response.redirect(new URL(redirectUrl, request.url), 302);
   }
 
   if (book.pdfUrl && !book.fullText && !book.textUrl) {

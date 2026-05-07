@@ -62,6 +62,52 @@
     --font-body: 'DM Sans', sans-serif;
   }
 
+  .dark {
+    --background: 202 35% 8%;
+    --foreground: 185 18% 92%;
+
+    --card: 202 32% 11%;
+    --card-foreground: 185 18% 92%;
+
+    --popover: 202 32% 11%;
+    --popover-foreground: 185 18% 92%;
+
+    --primary: 168 62% 48%;
+    --primary-foreground: 202 35% 8%;
+
+    --secondary: 196 24% 18%;
+    --secondary-foreground: 175 20% 88%;
+
+    --muted: 202 22% 16%;
+    --muted-foreground: 190 12% 68%;
+
+    --accent: 37 88% 58%;
+    --accent-foreground: 202 35% 8%;
+
+    --destructive: 0 70% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 197 22% 21%;
+    --input: 197 22% 21%;
+    --ring: 168 62% 48%;
+
+    --sidebar-background: 202 36% 7%;
+    --sidebar-foreground: 185 16% 84%;
+    --sidebar-primary: 168 62% 50%;
+    --sidebar-primary-foreground: 202 35% 8%;
+    --sidebar-accent: 202 28% 14%;
+    --sidebar-accent-foreground: 185 18% 92%;
+    --sidebar-border: 202 24% 16%;
+    --sidebar-ring: 168 62% 50%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(168 62% 42%), hsl(188 62% 48%));
+    --gradient-accent: linear-gradient(135deg, hsl(37 88% 58%), hsl(24 80% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(202 36% 7%), hsl(190 32% 13%));
+
+    --shadow-card: 0 1px 3px hsl(202 50% 3% / 0.45), 0 10px 28px hsl(202 50% 3% / 0.22);
+    --shadow-elevated: 0 8px 24px hsl(202 50% 3% / 0.5), 0 18px 48px hsl(202 50% 3% / 0.32);
+  }
+
   * {
     @apply border-border;
   }
@@ -71,6 +117,10 @@
     font-family: var(--font-body);
     min-height: 100vh;
     background-image: linear-gradient(180deg, hsl(150 20% 98%) 0%, hsl(205 38% 97%) 100%);
+  }
+
+  .dark body {
+    background-image: linear-gradient(180deg, hsl(202 35% 8%) 0%, hsl(198 34% 10%) 100%);
   }
 
   h1, h2, h3, h4, h5, h6 {

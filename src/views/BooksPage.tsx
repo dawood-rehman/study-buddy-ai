@@ -14,7 +14,7 @@ import { BookSearchResponse, LibraryBook, bookCategories, bookLanguages, getBook
 import { getErrorMessage, requestAi } from "@/lib/ai-client";
 import { addLibraryItem } from "@/lib/library-store";
 
-type ReaderState = "idle" | "loading" | "ready" | "error";
+type ReaderState = "idle" | "loading" | "ready" | "pdf" | "error";
 
 function authorLine(book: LibraryBook) {
   return book.authors.filter(Boolean).join(", ") || "Unknown author";
@@ -108,6 +108,11 @@ export default function BooksPage() {
     setReaderState("loading");
     requestAnimationFrame(() => readerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
 
+    if (book.pdfUrl && !book.textUrl && !book.fullText) {
+      setReaderState("pdf");
+      return;
+    }
+
     try {
       const response = await fetch(`/api/books/${book.id}/read`);
       const data = await response.json();
@@ -120,6 +125,11 @@ export default function BooksPage() {
       setReaderTruncated(Boolean(data.truncated));
       setReaderState("ready");
     } catch (error) {
+      if (book.pdfUrl) {
+        setReaderState("pdf");
+        return;
+      }
+
       setReaderState("error");
       setReaderText(error instanceof Error ? error.message : "This book could not be opened in the reader.");
     }
@@ -498,6 +508,13 @@ export default function BooksPage() {
                         })}
                       </article>
                     </>
+                  ) : readerState === "pdf" && activeBook.pdfUrl ? (
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-border bg-background p-3 text-sm leading-6 text-muted-foreground">
+                        PDF preview is loaded from the uploaded/source file. Use Offline Book to download it.
+                      </div>
+                      <iframe title={`${activeBook.title} PDF reader`} src={activeBook.pdfUrl} className="h-[620px] w-full rounded-md border border-border bg-white" />
+                    </div>
                   ) : readerState === "error" ? (
                     <div className="text-sm leading-6 text-muted-foreground">
                       <p>{readerText}</p>

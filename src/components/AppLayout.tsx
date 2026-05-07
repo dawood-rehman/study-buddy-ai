@@ -5,6 +5,7 @@ import { LogIn, LogOut } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { BottomNav } from "@/components/BottomNav";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 
@@ -26,7 +27,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <span className="font-display font-bold text-foreground">StudyAI</span>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <ThemeToggle />
               {user ? (
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => void signOut()}>
                   <LogOut className="h-4 w-4" />

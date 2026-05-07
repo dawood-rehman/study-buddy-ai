@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -102,11 +102,13 @@ export default function AdminDashboardPage() {
   const [books, setBooks] = useState<AdminBookItem[]>([]);
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
   const [bookDrafts, setBookDrafts] = useState<Record<string, BookFormState>>({});
+  const [selectedBookFile, setSelectedBookFile] = useState<File | null>(null);
   const [filter, setFilter] = useState<"all" | AdminFeedbackItem["status"]>("all");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, AdminFeedbackItem["status"]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isBooksLoading, setIsBooksLoading] = useState(true);
+  const [isFileUploading, setIsFileUploading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
 
   const filteredItems = useMemo(() => {
@@ -211,6 +213,50 @@ export default function AdminDashboardPage() {
       toast.error("Book create failed", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
+    }
+  };
+
+  const handleUploadBookFile = async () => {
+    if (!selectedBookFile) {
+      toast.error("Choose a PDF, TXT, or EPUB file first.");
+      return;
+    }
+
+    setIsFileUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", selectedBookFile);
+      const response = await fetch("/api/admin/books/upload", {
+        method: "POST",
+        body: form,
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || "File upload failed.");
+      }
+
+      const file = payload.file as { url: string; fileName: string; contentType: string };
+      const patch: Partial<BookFormState> = {
+        sourceUrl: file.url,
+        estimatedPages: bookForm.estimatedPages || "Uploaded file",
+      };
+
+      if (file.contentType === "application/pdf") patch.pdfUrl = file.url;
+      if (file.contentType === "text/plain") patch.textUrl = file.url;
+      if (file.contentType === "application/epub+zip") patch.epubUrl = file.url;
+      if (!bookForm.title) patch.title = file.fileName.replace(/\.[^.]+$/, "");
+
+      updateBookForm(patch);
+      toast.success("File uploaded", {
+        description: "The file URL was added to the book form.",
+      });
+    } catch (error) {
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsFileUploading(false);
     }
   };
 
@@ -370,6 +416,23 @@ export default function AdminDashboardPage() {
                       <SelectItem value="draft">Draft</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="mt-3 rounded-md border border-border bg-background p-3">
+                  <label className="mb-2 block text-sm font-medium text-foreground">Upload PDF / Book File</label>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                    <Input
+                      type="file"
+                      accept="application/pdf,text/plain,application/epub+zip,.pdf,.txt,.epub"
+                      onChange={(event) => setSelectedBookFile(event.target.files?.[0] || null)}
+                    />
+                    <Button type="button" variant="outline" onClick={handleUploadBookFile} disabled={isFileUploading}>
+                      {isFileUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      Upload File
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    Uploaded files are stored in MongoDB and can be used for online reading or download. Only upload books you own or have permission to distribute.
+                  </p>
                 </div>
                 <Textarea value={bookForm.description} onChange={(event) => updateBookForm({ description: event.target.value })} placeholder="Description / summary" className="mt-3 min-h-[90px]" />
                 <Textarea value={bookForm.fullText} onChange={(event) => updateBookForm({ fullText: event.target.value })} placeholder="Optional full text for online reader and PDF generation" className="mt-3 min-h-[130px]" />
