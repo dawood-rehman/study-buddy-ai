@@ -29,7 +29,7 @@ type LeafletMap = {
 type LeafletMarker = {
   addTo: (map: LeafletMap) => LeafletMarker;
   bindPopup: (content: string) => LeafletMarker;
-  on: (event: string, handler: () => void) => LeafletMarker;
+  on: (event: string, handler: (event?: { originalEvent?: Event }) => void) => LeafletMarker;
   setLatLng: (latLng: [number, number]) => LeafletMarker;
   setPopupContent: (content: string) => LeafletMarker;
   remove: () => void;
@@ -41,7 +41,7 @@ type LeafletTileLayer = {
 
 type LeafletApi = {
   map: (element: HTMLDivElement, options?: Record<string, unknown>) => LeafletMap;
-  marker: (latLng: [number, number]) => LeafletMarker;
+  marker: (latLng: [number, number], options?: Record<string, unknown>) => LeafletMarker;
   tileLayer: (url: string, options?: Record<string, unknown>) => LeafletTileLayer;
 };
 
@@ -119,6 +119,16 @@ function findFuzzyPlace(query: string) {
   return best.distance <= maxDistance ? best.place : null;
 }
 
+function getReportKey(place: MapPlace, focus?: string) {
+  const locationKey = [
+    place.name.trim().toLowerCase(),
+    place.region.trim().toLowerCase(),
+    place.latitude.toFixed(3),
+    place.longitude.toFixed(3),
+  ].join("|");
+  return `${locationKey}|${(focus || "").trim().toLowerCase()}`;
+}
+
 function loadLeaflet() {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Map can only load in the browser."));
@@ -170,6 +180,8 @@ export default function EarthMapPage() {
   const placeMarkersRef = useRef<LeafletMarker[]>([]);
   const explorePlaceRef = useRef<(place: MapPlace, focus?: string, shouldGenerate?: boolean) => void>(() => undefined);
   const generationIdRef = useRef(0);
+  const reportCacheRef = useRef<Map<string, string>>(new Map());
+  const isAiLoadingRef = useRef(false);
 
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -185,7 +197,7 @@ export default function EarthMapPage() {
     map.setView([place.latitude, place.longitude], zoom, { animate: true, duration: 0.7 });
 
     if (!focusMarkerRef.current) {
-      focusMarkerRef.current = leaflet.marker([place.latitude, place.longitude]).addTo(map).bindPopup(place.name);
+      focusMarkerRef.current = leaflet.marker([place.latitude, place.longitude], { bubblingMouseEvents: false }).addTo(map).bindPopup(place.name);
     } else {
       focusMarkerRef.current.setLatLng([place.latitude, place.longitude]).setPopupContent(place.name);
     }
@@ -198,7 +210,26 @@ export default function EarthMapPage() {
 
     if (!shouldGenerate) return;
 
+    const reportKey = getReportKey(place, focus);
+    const cachedReport = reportCacheRef.current.get(reportKey);
+
+    if (cachedReport) {
+      generationIdRef.current = generationId;
+      setResponse(cachedReport);
+      setIsLoading(false);
+      toast.success("Cached location report loaded");
+      return;
+    }
+
+    if (isAiLoadingRef.current) {
+      toast.info("AI report is already generating", {
+        description: "Please wait a moment, then select the next location.",
+      });
+      return;
+    }
+
     generationIdRef.current = generationId;
+    isAiLoadingRef.current = true;
     setResponse(null);
     setIsLoading(true);
 
@@ -222,6 +253,7 @@ export default function EarthMapPage() {
       if (generationIdRef.current !== generationId) return;
 
       setResponse(result.content);
+      reportCacheRef.current.set(reportKey, result.content);
       toast.success("Location guide ready", {
         description: `Model: ${result.model}`,
       });
@@ -231,7 +263,10 @@ export default function EarthMapPage() {
         description: getErrorMessage(error),
       });
     } finally {
-      if (generationIdRef.current === generationId) setIsLoading(false);
+      isAiLoadingRef.current = false;
+      if (generationIdRef.current === generationId) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -259,10 +294,13 @@ export default function EarthMapPage() {
       }).addTo(map);
 
       placeMarkersRef.current = mapPlaces.map((place) => (
-        leaflet.marker([place.latitude, place.longitude])
+        leaflet.marker([place.latitude, place.longitude], { bubblingMouseEvents: false })
           .addTo(map)
           .bindPopup(`${place.name}<br>${place.region}`)
-          .on("click", () => explorePlaceRef.current(place, undefined, true))
+          .on("click", (markerEvent) => {
+            markerEvent?.originalEvent?.stopPropagation();
+            explorePlaceRef.current(place, undefined, true);
+          })
       ));
 
       map.on("click", (event) => {
