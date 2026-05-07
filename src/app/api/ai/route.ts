@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { z } from "zod";
 import { buildOpenRouterMessages, selectOpenRouterModel } from "@/lib/openrouter";
 
@@ -24,6 +26,115 @@ type OpenRouterPayload = {
   } | string;
 };
 
+type AiErrorCode =
+  | "OPENROUTER_API_KEY_MISSING"
+  | "OPENROUTER_API_KEY_INVALID"
+  | "INVALID_JSON"
+  | "INVALID_REQUEST"
+  | "OPENROUTER_BAD_REQUEST"
+  | "OPENROUTER_AUTH_ERROR"
+  | "OPENROUTER_PAYMENT_REQUIRED"
+  | "OPENROUTER_RATE_LIMITED"
+  | "OPENROUTER_MODEL_UNAVAILABLE"
+  | "OPENROUTER_SERVER_ERROR"
+  | "OPENROUTER_NETWORK_ERROR"
+  | "OPENROUTER_EMPTY_RESPONSE"
+  | "AI_SERVER_ERROR";
+
+type ApiErrorBody = {
+  error: {
+    code: AiErrorCode;
+    message: string;
+    detail?: string;
+  };
+};
+
+function createApiError(code: AiErrorCode, message: string, status: number, detail?: string) {
+  const body: ApiErrorBody = {
+    error: {
+      code,
+      message,
+      ...(detail ? { detail } : {}),
+    },
+  };
+
+  return NextResponse.json(body, { status });
+}
+
+function normalizeEnvValue(value: string) {
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+
+  if ((quote === "\"" || quote === "'") && trimmed.endsWith(quote)) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  const inlineCommentIndex = trimmed.search(/\s#/);
+  return inlineCommentIndex >= 0 ? trimmed.slice(0, inlineCommentIndex).trim() : trimmed;
+}
+
+function readOpenRouterKeyFromLocalEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+
+  if (!existsSync(envPath)) {
+    return undefined;
+  }
+
+  try {
+    const envFile = readFileSync(envPath, "utf8");
+
+    for (const line of envFile.split(/\r?\n/)) {
+      const normalizedLine = line.trim().replace(/^export\s+/, "");
+
+      if (!normalizedLine || normalizedLine.startsWith("#")) {
+        continue;
+      }
+
+      const separatorIndex = normalizedLine.indexOf("=");
+
+      if (separatorIndex === -1) {
+        continue;
+      }
+
+      const name = normalizedLine.slice(0, separatorIndex).trim();
+
+      if (name !== "OPENROUTER_API_KEY") {
+        continue;
+      }
+
+      return normalizeEnvValue(normalizedLine.slice(separatorIndex + 1));
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function isMissingOrPlaceholderApiKey(apiKey: string | undefined) {
+  if (!apiKey) return true;
+
+  return /^(your_|replace_|paste_|sk-or-v1-?x+$|<.*>)$/i.test(apiKey);
+}
+
+function getOpenRouterApiKey() {
+  const apiKey = normalizeEnvValue(process.env.OPENROUTER_API_KEY || "") || readOpenRouterKeyFromLocalEnv();
+
+  if (!isMissingOrPlaceholderApiKey(apiKey)) {
+    return apiKey;
+  }
+
+  const target = process.env.VERCEL
+    ? "Vercel Project Settings > Environment Variables"
+    : ".env or .env.local";
+
+  return createApiError(
+    "OPENROUTER_API_KEY_MISSING",
+    `OPENROUTER_API_KEY is missing for this runtime. Add it in ${target}, then restart/redeploy the app.`,
+    500,
+  );
+}
+
 function parseOpenRouterError(payload: unknown, fallback: string) {
   if (payload && typeof payload === "object" && "error" in payload) {
     const error = (payload as { error?: { message?: string } | string }).error;
@@ -34,14 +145,60 @@ function parseOpenRouterError(payload: unknown, fallback: string) {
   return fallback;
 }
 
-export async function POST(request: NextRequest) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+function mapOpenRouterError(status: number, message: string, model: string) {
+  if (status === 400) {
+    return {
+      code: "OPENROUTER_BAD_REQUEST" as const,
+      message: `OpenRouter rejected the request: ${message}`,
+    };
+  }
 
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "OpenRouter API key is missing. Add OPENROUTER_API_KEY in .env." },
-      { status: 500 },
-    );
+  if (status === 401 || status === 403) {
+    return {
+      code: "OPENROUTER_AUTH_ERROR" as const,
+      message: "OpenRouter rejected the API key. Check OPENROUTER_API_KEY; it may be missing, invalid, or not enabled in this deployment.",
+    };
+  }
+
+  if (status === 402) {
+    return {
+      code: "OPENROUTER_PAYMENT_REQUIRED" as const,
+      message: "OpenRouter account has no available credits for this request.",
+    };
+  }
+
+  if (status === 404) {
+    return {
+      code: "OPENROUTER_MODEL_UNAVAILABLE" as const,
+      message: `The selected OpenRouter model is unavailable: ${model}.`,
+    };
+  }
+
+  if (status === 429) {
+    return {
+      code: "OPENROUTER_RATE_LIMITED" as const,
+      message: "OpenRouter rate limit was reached. Wait a moment and try again.",
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      code: "OPENROUTER_SERVER_ERROR" as const,
+      message: `OpenRouter is temporarily unavailable: ${message}`,
+    };
+  }
+
+  return {
+    code: "OPENROUTER_SERVER_ERROR" as const,
+    message: `OpenRouter request failed (${status}): ${message}`,
+  };
+}
+
+export async function POST(request: NextRequest) {
+  const apiKeyOrResponse = getOpenRouterApiKey();
+
+  if (typeof apiKeyOrResponse !== "string") {
+    return apiKeyOrResponse;
   }
 
   try {
@@ -49,9 +206,11 @@ export async function POST(request: NextRequest) {
     const parsed = aiRequestSchema.safeParse(json);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Invalid AI request." },
-        { status: 400 },
+      return createApiError(
+        "INVALID_REQUEST",
+        parsed.error.issues[0]?.message || "Invalid AI request.",
+        400,
+        parsed.error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join("; "),
       );
     }
 
@@ -65,7 +224,7 @@ export async function POST(request: NextRequest) {
     const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKeyOrResponse}`,
         "Content-Type": "application/json",
         "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
         "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "Study Buddy AI",
@@ -88,19 +247,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (!openRouterResponse.ok) {
-      return NextResponse.json(
-        { error: parseOpenRouterError(payload, rawText || "OpenRouter request failed.") },
-        { status: openRouterResponse.status },
+      const detail = parseOpenRouterError(payload, rawText || "OpenRouter request failed.");
+      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, modelSelection.model);
+
+      return createApiError(
+        mappedError.code,
+        mappedError.message,
+        openRouterResponse.status,
+        detail,
       );
     }
 
     const content = payload?.choices?.[0]?.message?.content;
 
     if (!content) {
-      return NextResponse.json(
-        { error: "OpenRouter returned an empty response." },
-        { status: 502 },
-      );
+      return createApiError("OPENROUTER_EMPTY_RESPONSE", "OpenRouter returned an empty response.", 502);
     }
 
     return NextResponse.json({
@@ -110,10 +271,20 @@ export async function POST(request: NextRequest) {
       modelReason: modelSelection.reason,
     });
   } catch (error) {
-    const message = error instanceof SyntaxError
-      ? "Invalid request JSON."
-      : "Unexpected AI server error. Please try again.";
+    if (error instanceof SyntaxError) {
+      return createApiError("INVALID_JSON", "Invalid request JSON.", 400);
+    }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof TypeError) {
+      return createApiError(
+        "OPENROUTER_NETWORK_ERROR",
+        "Could not reach OpenRouter. Check the network connection and try again.",
+        502,
+        error.message,
+      );
+    }
+
+    const detail = error instanceof Error ? error.message : undefined;
+    return createApiError("AI_SERVER_ERROR", "Unexpected AI server error.", 500, detail);
   }
 }
