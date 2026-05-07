@@ -3,7 +3,7 @@
 import {
   BookOpen, Brain, FileText, Home, Languages,
   LayoutDashboard, Library, MessageSquare, Pencil, ScrollText,
-  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus, LogOut, Globe2
+  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus, LogOut, Globe2, CreditCard
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/lib/auth-context";
@@ -64,6 +64,7 @@ export function AppSidebar() {
   const accountItems = [
     { title: "Feedback", url: "/feedback", icon: MessageSquarePlus },
     { title: "Settings", url: "/settings", icon: Settings },
+    ...(user && user.role !== "admin" ? [{ title: "Upgrade", url: "/upgrade", icon: CreditCard }] : []),
     ...(user?.role === "admin" ? [{ title: "Admin", url: "/admin", icon: ShieldCheck }] : []),
     { title: user ? "Logout" : "Login", url: "/login", icon: user ? LogOut : LogIn },
   ];
