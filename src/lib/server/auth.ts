@@ -24,6 +24,7 @@ export type PublicUser = {
   aiQuotaLimit?: number;
   aiDisabled?: boolean;
   aiCooldownUntil?: string;
+  hasPassword: boolean;
 };
 
 export type UserDocument = Document & {
@@ -62,6 +63,7 @@ export function toPublicUser(user: UserDocument): PublicUser {
     aiQuotaLimit: user.aiQuotaLimit,
     aiDisabled: user.aiDisabled === true,
     aiCooldownUntil: user.aiCooldownUntil?.toISOString?.(),
+    hasPassword: Boolean(user.passwordHash && user.salt),
   };
 }
 

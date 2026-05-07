@@ -16,6 +16,7 @@ export type StudyBuddyUser = {
   aiQuotaLimit?: number;
   aiDisabled?: boolean;
   aiCooldownUntil?: string;
+  hasPassword: boolean;
 };
 
 type AuthContextValue = {
@@ -26,7 +27,7 @@ type AuthContextValue = {
   signIn: (input: { email: string; password: string }) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (input: { name: string; email: string }) => Promise<void>;
-  changePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>;
+  changePassword: (input: { currentPassword?: string; newPassword: string; confirmPassword?: string }) => Promise<void>;
   refreshSession: () => Promise<void>;
 };
 
@@ -111,11 +112,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(payload.user);
   }, []);
 
-  const changePassword = useCallback(async (input: { currentPassword: string; newPassword: string }) => {
-    await apiRequest<{ ok: boolean }>("/api/auth/password", {
+  const changePassword = useCallback(async (input: { currentPassword?: string; newPassword: string; confirmPassword?: string }) => {
+    const payload = await apiRequest<{ ok: boolean; user?: StudyBuddyUser }>("/api/auth/password", {
       method: "PATCH",
       body: JSON.stringify(input),
     });
+    if (payload.user) setUser(payload.user);
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({

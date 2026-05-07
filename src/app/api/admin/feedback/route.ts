@@ -14,8 +14,9 @@ type FeedbackDocument = {
   category: "feedback" | "complaint" | "bug" | "feature";
   subject: string;
   message: string;
-  status: "open" | "in-review" | "resolved";
+  status: "open" | "in-review" | "pending" | "resolved" | "rejected";
   adminReply?: string;
+  statusNote?: string;
   createdAt: Date;
   updatedAt: Date;
   resolvedAt?: Date;
@@ -31,6 +32,7 @@ function serializeFeedback(item: FeedbackDocument) {
     message: item.message,
     status: item.status,
     adminReply: item.adminReply,
+    statusNote: item.statusNote,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
     resolvedAt: item.resolvedAt?.toISOString(),

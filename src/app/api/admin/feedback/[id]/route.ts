@@ -8,8 +8,9 @@ import { ensureIndexes, getDb } from "@/lib/server/mongodb";
 export const runtime = "nodejs";
 
 const updateSchema = z.object({
-  status: z.enum(["open", "in-review", "resolved"]).optional(),
+  status: z.enum(["open", "in-review", "pending", "resolved", "rejected"]).optional(),
   adminReply: z.string().trim().max(8000, "Reply is too long.").optional(),
+  statusNote: z.string().trim().max(3000, "Status note is too long.").optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {

@@ -15,8 +15,9 @@ type FeedbackItem = {
   category: "feedback" | "complaint" | "bug" | "feature";
   subject: string;
   message: string;
-  status: "open" | "in-review" | "resolved";
+  status: "open" | "in-review" | "pending" | "resolved" | "rejected";
   adminReply?: string;
+  statusNote?: string;
   createdAt: string;
 };
 
@@ -126,6 +127,12 @@ export default function FeedbackPage() {
                     </div>
                     <p className="mb-2 text-xs uppercase tracking-normal text-muted-foreground">{item.category}</p>
                     <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.message}</p>
+                    {item.statusNote && (
+                      <div className="mt-3 rounded-md border border-border bg-muted/40 p-3">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">Status Note</p>
+                        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{item.statusNote}</p>
+                      </div>
+                    )}
                     {item.adminReply && (
                       <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3">
                         <p className="mb-1 text-xs font-semibold uppercase tracking-normal text-primary">Admin Reply</p>

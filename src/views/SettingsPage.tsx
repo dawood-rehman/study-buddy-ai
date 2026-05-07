@@ -47,7 +47,7 @@ export default function SettingsPage() {
   const { user, updateProfile, changePassword } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [profile, setProfile] = useState({ name: "", email: "" });
-  const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
+  const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
 
   useEffect(() => {
     if (user) setProfile({ name: user.name, email: user.email });
@@ -96,10 +96,15 @@ export default function SettingsPage() {
   };
 
   const handlePasswordSave = async () => {
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      toast.error("Password confirmation does not match.");
+      return;
+    }
+
     try {
       await changePassword(passwords);
-      setPasswords({ currentPassword: "", newPassword: "" });
-      toast.success("Password updated");
+      setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast.success(user?.hasPassword ? "Password updated" : "Password set");
     } catch (error) {
       toast.error("Password update failed", {
         description: error instanceof Error ? error.message : "Please try again.",
@@ -172,13 +177,21 @@ export default function SettingsPage() {
             </div>
 
             <div className="glass-card p-5">
-              <h3 className="mb-4 font-display font-semibold text-foreground">Password</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input value={passwords.currentPassword} onChange={(event) => setPasswords({ ...passwords, currentPassword: event.target.value })} placeholder="Current password" type="password" />
+              <h3 className="font-display font-semibold text-foreground">{user.hasPassword ? "Password" : "Set Password"}</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {user.hasPassword
+                  ? "Enter your current password before setting a new one."
+                  : "Your account was created with Google, so set a password once if you also want email/password login."}
+              </p>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {user.hasPassword ? (
+                  <Input value={passwords.currentPassword} onChange={(event) => setPasswords({ ...passwords, currentPassword: event.target.value })} placeholder="Current password" type="password" />
+                ) : null}
                 <Input value={passwords.newPassword} onChange={(event) => setPasswords({ ...passwords, newPassword: event.target.value })} placeholder="New password" type="password" />
+                <Input value={passwords.confirmPassword} onChange={(event) => setPasswords({ ...passwords, confirmPassword: event.target.value })} placeholder="Confirm new password" type="password" />
               </div>
               <Button className="mt-4 gap-2" variant="outline" onClick={handlePasswordSave}>
-                <Save className="h-4 w-4" /> Change Password
+                <Save className="h-4 w-4" /> {user.hasPassword ? "Change Password" : "Set Password"}
               </Button>
             </div>
           </>

@@ -20,8 +20,9 @@ type AdminFeedbackItem = {
   category: "feedback" | "complaint" | "bug" | "feature";
   subject: string;
   message: string;
-  status: "open" | "in-review" | "resolved";
+  status: "open" | "in-review" | "pending" | "resolved" | "rejected";
   adminReply?: string;
+  statusNote?: string;
   createdAt: string;
 };
 
@@ -231,6 +232,7 @@ export default function AdminDashboardPage() {
   const [selectedBookFile, setSelectedBookFile] = useState<File | null>(null);
   const [filter, setFilter] = useState<"all" | AdminFeedbackItem["status"]>("all");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [statusNoteDrafts, setStatusNoteDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, AdminFeedbackItem["status"]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isBooksLoading, setIsBooksLoading] = useState(true);
@@ -335,15 +337,35 @@ export default function AdminDashboardPage() {
   }, []);
 
   const handleUpdate = async (item: AdminFeedbackItem) => {
-    const adminReply = replyDrafts[item.id] ?? item.adminReply ?? "";
+    const adminReply = replyDrafts[item.id]?.trim();
+    const statusNote = statusNoteDrafts[item.id]?.trim();
     const status = statusDrafts[item.id] ?? item.status;
+    const body: { status: AdminFeedbackItem["status"]; adminReply?: string; statusNote?: string } = { status };
+
+    if (adminReply) body.adminReply = adminReply;
+    if (statusNote) body.statusNote = statusNote;
 
     try {
       await adminRequest(`/api/admin/feedback/${item.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ adminReply, status }),
+        body: JSON.stringify(body),
       });
       toast.success("Feedback updated");
+      setReplyDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setStatusNoteDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setStatusDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
       await loadItems();
     } catch (error) {
       toast.error("Update failed", {
@@ -659,7 +681,9 @@ export default function AdminDashboardPage() {
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
                     <SelectItem value="in-review">In Review</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -683,7 +707,21 @@ export default function AdminDashboardPage() {
                         <span className="rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">{item.status}</span>
                       </div>
                       <p className="mb-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.message}</p>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-start">
+                      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {item.adminReply ? (
+                          <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-normal text-primary">Saved Admin Reply</p>
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{item.adminReply}</p>
+                          </div>
+                        ) : null}
+                        {item.statusNote ? (
+                          <div className="rounded-md border border-border bg-background p-3">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted-foreground">Saved Status Note</p>
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{item.statusNote}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-start">
                         <Select
                           value={statusDrafts[item.id] ?? item.status}
                           onValueChange={(value) => setStatusDrafts((current) => ({ ...current, [item.id]: value as AdminFeedbackItem["status"] }))}
@@ -692,16 +730,24 @@ export default function AdminDashboardPage() {
                           <SelectContent>
                             <SelectItem value="open">Open</SelectItem>
                             <SelectItem value="in-review">In Review</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="resolved">Resolved</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
                           </SelectContent>
                         </Select>
                         <Textarea
-                          value={replyDrafts[item.id] ?? item.adminReply ?? ""}
+                          value={replyDrafts[item.id] ?? ""}
                           onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
-                          placeholder="Write admin reply..."
+                          placeholder="Write a new admin reply. Leave blank to keep saved reply."
                           className="min-h-[96px]"
                         />
-                        <Button className="gradient-primary w-full border-0 md:w-auto" onClick={() => handleUpdate(item)}>
+                        <Textarea
+                          value={statusNoteDrafts[item.id] ?? ""}
+                          onChange={(event) => setStatusNoteDrafts((current) => ({ ...current, [item.id]: event.target.value }))}
+                          placeholder="Optional status note for user, e.g. Your issue is currently under review."
+                          className="min-h-[96px]"
+                        />
+                        <Button className="gradient-primary w-full border-0 lg:w-auto" onClick={() => handleUpdate(item)}>
                           <CheckCircle2 className="mr-2 h-4 w-4" /> Update
                         </Button>
                       </div>
