@@ -16,7 +16,7 @@ export const OPENROUTER_MODEL_FALLBACKS = {
   ],
 } as const;
 
-const OPENROUTER_MAX_FALLBACK_MODELS = 2;
+const OPENROUTER_MAX_FALLBACK_MODELS = 3;
 
 export const OPENROUTER_MODELS = {
   general: OPENROUTER_MODEL_FALLBACKS.general[0],

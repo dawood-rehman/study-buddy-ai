@@ -12,7 +12,7 @@ describe("selectOpenRouterModel", () => {
     expect(selection.key).toBe("computer");
     expect(selection.model).toBe(OPENROUTER_MODEL_FALLBACKS.computer[0]);
     expect(selection.models.length).toBeGreaterThan(1);
-    expect(selection.models.length).toBeLessThanOrEqual(2);
+    expect(selection.models.length).toBeLessThanOrEqual(3);
     expect(new Set(selection.models).size).toBe(selection.models.length);
   });
 
@@ -35,6 +35,6 @@ describe("selectOpenRouterModel", () => {
     });
 
     expect(selection.key).toBe("deep");
-    expect(selection.models).toEqual([...OPENROUTER_MODEL_FALLBACKS.deep].slice(0, 2));
+    expect(selection.models).toEqual([...OPENROUTER_MODEL_FALLBACKS.deep].slice(0, 3));
   });
 });

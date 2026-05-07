@@ -63,6 +63,12 @@ export async function ensureIndexes() {
       db.collection("books").createIndex({ tags: 1, status: 1 }),
       db.collection("bookFiles").createIndex({ uploadedBy: 1, createdAt: -1 }),
       db.collection("bookFiles").createIndex({ createdAt: -1 }),
+      db.collection("aiUsage").createIndex({ userId: 1, createdAt: -1 }),
+      db.collection("aiUsage").createIndex({ createdAt: -1 }),
+      db.collection("aiUsage").createIndex({ status: 1, createdAt: -1 }),
+      db.collection("passwordResetTokens").createIndex({ tokenHash: 1 }, { unique: true }),
+      db.collection("passwordResetTokens").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("passwordResetTokens").createIndex({ userId: 1, createdAt: -1 }),
     ]);
   }).catch((error) => {
     cache.indexesPromise = undefined;

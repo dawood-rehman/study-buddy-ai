@@ -16,7 +16,7 @@ export interface BookLanguage {
 
 export interface LibraryBook {
   id: string;
-  source: "gutenberg" | "admin";
+  source: "gutenberg" | "admin" | "internet-archive" | "open-library" | "doab";
   sourceId?: string;
   title: string;
   authors: string[];
@@ -78,6 +78,8 @@ export interface GutendexListResponse {
   previous: string | null;
   results: GutendexBook[];
 }
+
+export type BookSource = LibraryBook["source"];
 
 export interface AdminBookPayload {
   title: string;
@@ -334,6 +336,18 @@ export function parseBookId(id: string) {
 
   if (id.startsWith("admin-")) {
     return { source: "admin" as const, sourceId: id.replace("admin-", "") };
+  }
+
+  if (id.startsWith("ia-")) {
+    return { source: "internet-archive" as const, sourceId: decodeURIComponent(id.replace("ia-", "")) };
+  }
+
+  if (id.startsWith("ol-")) {
+    return { source: "open-library" as const, sourceId: decodeURIComponent(id.replace("ol-", "")) };
+  }
+
+  if (id.startsWith("doab-")) {
+    return { source: "doab" as const, sourceId: decodeURIComponent(id.replace("doab-", "")) };
   }
 
   return { source: /^\d+$/.test(id) ? "gutenberg" as const : "admin" as const, sourceId: id };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Chrome, Loader2, LogIn, UserPlus } from "lucide-react";
 import { signIn as nextAuthSignIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,11 @@ export function AuthForm() {
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
           Login
         </Button>
+        <div className="text-right">
+          <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
       </TabsContent>
       <TabsContent value="signup" className="space-y-3">
         <Button variant="outline" className="w-full" onClick={() => void nextAuthSignIn("google", { callbackUrl: "/login" })}>

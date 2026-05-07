@@ -226,7 +226,7 @@ export default function BooksPage() {
   return (
     <AuthGate title="Login required for Books" description="Login to search, save, read online, and download offline book resources.">
       <div className="mx-auto w-full max-w-7xl">
-        <PageHeader icon={BookMarked} title="Books" description="A public-domain online/offline library powered by Project Gutenberg sources" />
+        <PageHeader icon={BookMarked} title="Books" description="A searchable online/offline library with public-domain sources, admin uploads, metadata filters, and AI recommendations" />
 
         {isSearching ? (
           <div className="mb-4 h-1 overflow-hidden rounded-full bg-secondary">
@@ -403,6 +403,7 @@ export default function BooksPage() {
                             {book.languageLabel}
                           </span>
                           <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">{book.estimatedPages || "Full book"}</span>
+                          <span className="inline-flex rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">{book.source}</span>
                         </div>
                         <h3 className="line-clamp-2 font-display font-semibold text-foreground">{book.title}</h3>
                         <p className="mt-1 line-clamp-1 text-sm font-medium text-primary">by {authorLine(book)}</p>
@@ -477,7 +478,7 @@ export default function BooksPage() {
                   </Select>
                 </div>
 
-                <div className="max-h-[680px] overflow-y-auto rounded-md border border-border bg-[#fbfaf7] p-5 shadow-inner">
+                <div className="max-h-[680px] overflow-y-auto rounded-md border border-border bg-[#fbfaf7] p-5 shadow-inner dark:bg-slate-950">
                   {readerState === "loading" ? (
                     <div className="flex min-h-[360px] items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -490,7 +491,7 @@ export default function BooksPage() {
                         </div>
                       ) : null}
                       <article
-                        className={`mx-auto max-w-prose font-serif text-[#1f2933] ${
+                        className={`mx-auto max-w-prose font-serif text-[#1f2933] dark:text-slate-100 ${
                           readerSize === "compact" ? "text-sm leading-7" : readerSize === "large" ? "text-lg leading-9" : "text-base leading-8"
                         }`}
                       >
@@ -513,7 +514,7 @@ export default function BooksPage() {
                       <div className="rounded-md border border-border bg-background p-3 text-sm leading-6 text-muted-foreground">
                         PDF preview is loaded from the uploaded/source file. Use Offline Book to download it.
                       </div>
-                      <iframe title={`${activeBook.title} PDF reader`} src={activeBook.pdfUrl} className="h-[620px] w-full rounded-md border border-border bg-white" />
+                      <iframe title={`${activeBook.title} PDF reader`} src={activeBook.pdfUrl} className="h-[620px] w-full rounded-md border border-border bg-white dark:bg-slate-950" />
                     </div>
                   ) : readerState === "error" ? (
                     <div className="text-sm leading-6 text-muted-foreground">

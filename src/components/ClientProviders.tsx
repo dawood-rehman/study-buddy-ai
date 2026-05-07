@@ -13,7 +13,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="system" storageKey="study-buddy-theme" enableSystem>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>

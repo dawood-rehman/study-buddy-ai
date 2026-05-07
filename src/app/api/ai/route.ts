@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { buildOpenRouterMessages, selectOpenRouterModel } from "@/lib/openrouter";
+import { getAuthenticatedUserDocument, type UserDocument } from "@/lib/server/auth";
+import { ensureIndexes, getDb } from "@/lib/server/mongodb";
 
 export const runtime = "nodejs";
 
@@ -15,6 +18,8 @@ const aiRequestSchema = z.object({
   options: z.record(z.unknown()).optional(),
 });
 
+type ParsedAiRequest = z.infer<typeof aiRequestSchema>;
+
 type OpenRouterPayload = {
   model?: string;
   choices?: Array<{
@@ -25,9 +30,38 @@ type OpenRouterPayload = {
   error?: {
     message?: string;
   } | string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 };
 
-function getMaxTokens(task: z.infer<typeof aiRequestSchema>["task"], options?: Record<string, unknown>) {
+type AiUsageDocument = {
+  userId?: ObjectId;
+  email?: string;
+  task: ParsedAiRequest["task"];
+  language: ParsedAiRequest["language"];
+  modelKey: string;
+  requestedModels: string[];
+  resolvedModel?: string;
+  status: "success" | "failed" | "quota-blocked" | "disabled";
+  durationMs: number;
+  promptChars: number;
+  contextChars: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  reportedTotalTokens?: number;
+  errorCode?: string;
+  errorDetail?: string;
+  createdAt: Date;
+};
+
+const ATTEMPT_TIMEOUT_MS = 24_000;
+const FALLBACK_STAGGER_MS = 2_500;
+const DEFAULT_MONTHLY_AI_QUOTA = 200;
+
+function getMaxTokens(task: ParsedAiRequest["task"], options?: Record<string, unknown>) {
   if (options?.mode === "book-assistant" || options?.mode === "earth-map-explorer") return 750;
   if (task === "summary" || task === "grammar") return 900;
   if (task === "past-paper" || task === "resume" || task === "counseling") return 1200;
@@ -39,6 +73,8 @@ type AiErrorCode =
   | "OPENROUTER_API_KEY_INVALID"
   | "INVALID_JSON"
   | "INVALID_REQUEST"
+  | "AI_ACCESS_DISABLED"
+  | "AI_QUOTA_EXCEEDED"
   | "OPENROUTER_BAD_REQUEST"
   | "OPENROUTER_AUTH_ERROR"
   | "OPENROUTER_PAYMENT_REQUIRED"
@@ -56,6 +92,51 @@ type ApiErrorBody = {
     detail?: string;
   };
 };
+
+type OpenRouterAttempt = {
+  model: string;
+  resolvedModel?: string;
+  content: string;
+  payload: OpenRouterPayload | null;
+  durationMs: number;
+  index: number;
+};
+
+class OpenRouterAttemptError extends Error {
+  code: AiErrorCode;
+  status: number;
+  detail?: string;
+  model: string;
+  retryable: boolean;
+  durationMs: number;
+
+  constructor({
+    code,
+    message,
+    status,
+    detail,
+    model,
+    retryable,
+    durationMs,
+  }: {
+    code: AiErrorCode;
+    message: string;
+    status: number;
+    detail?: string;
+    model: string;
+    retryable: boolean;
+    durationMs: number;
+  }) {
+    super(message);
+    this.name = "OpenRouterAttemptError";
+    this.code = code;
+    this.status = status;
+    this.detail = detail;
+    this.model = model;
+    this.retryable = retryable;
+    this.durationMs = durationMs;
+  }
+}
 
 function createApiError(code: AiErrorCode, message: string, status: number, detail?: string) {
   const body: ApiErrorBody = {
@@ -160,6 +241,7 @@ function mapOpenRouterError(status: number, message: string, models: string[]) {
     return {
       code: "OPENROUTER_BAD_REQUEST" as const,
       message: `OpenRouter rejected the request: ${message}`,
+      retryable: false,
     };
   }
 
@@ -167,6 +249,7 @@ function mapOpenRouterError(status: number, message: string, models: string[]) {
     return {
       code: "OPENROUTER_AUTH_ERROR" as const,
       message: "OpenRouter rejected the API key. Check OPENROUTER_API_KEY; it may be missing, invalid, or not enabled in this deployment.",
+      retryable: false,
     };
   }
 
@@ -174,20 +257,23 @@ function mapOpenRouterError(status: number, message: string, models: string[]) {
     return {
       code: "OPENROUTER_PAYMENT_REQUIRED" as const,
       message: "OpenRouter account has no available credits for this request.",
+      retryable: false,
     };
   }
 
   if (status === 404) {
     return {
       code: "OPENROUTER_MODEL_UNAVAILABLE" as const,
-      message: `OpenRouter could not use any selected model: ${modelList}.`,
+      message: `OpenRouter could not use the selected fallback models: ${modelList}.`,
+      retryable: true,
     };
   }
 
   if (status === 429) {
     return {
       code: "OPENROUTER_RATE_LIMITED" as const,
-      message: `OpenRouter rate limit was reached after trying the fallback models. Tried: ${modelList}.`,
+      message: `OpenRouter rate limit was reached after trying fallback models. Tried: ${modelList}.`,
+      retryable: true,
     };
   }
 
@@ -195,60 +281,116 @@ function mapOpenRouterError(status: number, message: string, models: string[]) {
     return {
       code: "OPENROUTER_SERVER_ERROR" as const,
       message: `OpenRouter is temporarily unavailable: ${message}`,
+      retryable: true,
     };
   }
 
   return {
     code: "OPENROUTER_SERVER_ERROR" as const,
     message: `OpenRouter request failed (${status}): ${message}`,
+    retryable: true,
   };
 }
 
-export async function POST(request: NextRequest) {
-  const apiKeyOrResponse = getOpenRouterApiKey();
+function estimateTokens(text: string) {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
 
-  if (typeof apiKeyOrResponse !== "string") {
-    return apiKeyOrResponse;
+function getMonthStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+async function logAiUsage(document: AiUsageDocument) {
+  try {
+    await ensureIndexes();
+    const db = await getDb();
+    await db.collection<AiUsageDocument>("aiUsage").insertOne(document);
+  } catch {
+    // Usage logs must not block the user-facing AI response.
+  }
+}
+
+async function getCurrentUserForAi(request: NextRequest) {
+  try {
+    return await getAuthenticatedUserDocument(request);
+  } catch {
+    return null;
+  }
+}
+
+async function enforceAiQuota(user: UserDocument | null) {
+  if (!user) return null;
+  if (user.aiDisabled === true) {
+    return createApiError("AI_ACCESS_DISABLED", "AI access is disabled for this account. Contact the admin.", 403);
+  }
+
+  const quotaLimit = typeof user.aiQuotaLimit === "number" ? user.aiQuotaLimit : DEFAULT_MONTHLY_AI_QUOTA;
+  if (quotaLimit <= 0) {
+    return createApiError("AI_QUOTA_EXCEEDED", "Your AI quota is currently set to zero. Contact the admin to enable AI access.", 429);
   }
 
   try {
-    const json = await request.json();
-    const parsed = aiRequestSchema.safeParse(json);
-
-    if (!parsed.success) {
-      return createApiError(
-        "INVALID_REQUEST",
-        parsed.error.issues[0]?.message || "Invalid AI request.",
-        400,
-        parsed.error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join("; "),
-      );
-    }
-
-    const { task, language, prompt, context, modelPreference, options } = parsed.data;
-    const modelSelection = selectOpenRouterModel({
-      modelPreference,
-      task,
-      text: `${prompt}\n${context || ""}`,
+    await ensureIndexes();
+    const db = await getDb();
+    const usedThisMonth = await db.collection("aiUsage").countDocuments({
+      userId: user._id,
+      status: "success",
+      createdAt: { $gte: getMonthStart() },
     });
 
+    if (usedThisMonth >= quotaLimit) {
+      return createApiError(
+        "AI_QUOTA_EXCEEDED",
+        `Monthly AI quota reached (${usedThisMonth}/${quotaLimit}). Ask the admin to increase your limit.`,
+        429,
+      );
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function buildHeaders(apiKey: string) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
+    "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "Study Buddy AI",
+  };
+}
+
+async function callOpenRouterModel({
+  apiKey,
+  requestBody,
+  model,
+  models,
+  index,
+  controller,
+}: {
+  apiKey: string;
+  requestBody: Omit<Record<string, unknown>, "model">;
+  model: string;
+  models: string[];
+  index: number;
+  controller: AbortController;
+}): Promise<OpenRouterAttempt> {
+  const startedAt = Date.now();
+  const timeout = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+
+  try {
     const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      signal: AbortSignal.timeout(32_000),
-      headers: {
-        Authorization: `Bearer ${apiKeyOrResponse}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
-        "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "Study Buddy AI",
-      },
+      signal: controller.signal,
+      headers: buildHeaders(apiKey),
       body: JSON.stringify({
-        models: modelSelection.models,
-        messages: buildOpenRouterMessages({ task, language, prompt, context, options }),
+        ...requestBody,
+        model,
         provider: {
           allow_fallbacks: true,
         },
-        temperature: 0.25,
-        top_p: 0.9,
-        max_tokens: getMaxTokens(task, options),
       }),
     });
 
@@ -263,43 +405,265 @@ export async function POST(request: NextRequest) {
 
     if (!openRouterResponse.ok) {
       const detail = parseOpenRouterError(payload, rawText || "OpenRouter request failed.");
-      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, modelSelection.models);
+      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, models);
 
-      return createApiError(
-        mappedError.code,
-        mappedError.message,
-        openRouterResponse.status,
+      throw new OpenRouterAttemptError({
+        code: mappedError.code,
+        message: mappedError.message,
+        status: openRouterResponse.status,
         detail,
-      );
+        model,
+        retryable: mappedError.retryable,
+        durationMs: Date.now() - startedAt,
+      });
     }
 
     const content = payload?.choices?.[0]?.message?.content;
-    const resolvedModel = payload?.model || modelSelection.model;
 
     if (!content) {
-      return createApiError("OPENROUTER_EMPTY_RESPONSE", "OpenRouter returned an empty response.", 502);
+      throw new OpenRouterAttemptError({
+        code: "OPENROUTER_EMPTY_RESPONSE",
+        message: "OpenRouter returned an empty response.",
+        status: 502,
+        model,
+        retryable: true,
+        durationMs: Date.now() - startedAt,
+      });
     }
 
-    return NextResponse.json({
+    return {
+      model,
+      resolvedModel: payload?.model || model,
       content,
-      model: resolvedModel,
+      payload,
+      durationMs: Date.now() - startedAt,
+      index,
+    };
+  } catch (error) {
+    if (error instanceof OpenRouterAttemptError) {
+      throw error;
+    }
+
+    if (controller.signal.aborted) {
+      throw new OpenRouterAttemptError({
+        code: "OPENROUTER_NETWORK_ERROR",
+        message: `${model} timed out after ${Math.round(ATTEMPT_TIMEOUT_MS / 1000)} seconds.`,
+        status: 504,
+        detail: error instanceof Error ? error.message : undefined,
+        model,
+        retryable: true,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    throw new OpenRouterAttemptError({
+      code: "OPENROUTER_NETWORK_ERROR",
+      message: "Could not reach OpenRouter. Check the network connection and try again.",
+      status: 502,
+      detail: error instanceof Error ? error.message : undefined,
+      model,
+      retryable: true,
+      durationMs: Date.now() - startedAt,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function runFallbackModels({
+  apiKey,
+  requestBody,
+  models,
+}: {
+  apiKey: string;
+  requestBody: Omit<Record<string, unknown>, "model">;
+  models: string[];
+}) {
+  const controllers = models.map(() => new AbortController());
+  const failures: OpenRouterAttemptError[] = [];
+
+  return await new Promise<OpenRouterAttempt>((resolveAttempt, rejectAttempt) => {
+    let settled = false;
+    let completed = 0;
+
+    const finishWithFailureIfDone = () => {
+      if (settled || completed < models.length) return;
+      const firstAuthOrBadRequest = failures.find((failure) => !failure.retryable);
+      rejectAttempt(firstAuthOrBadRequest || failures[0] || new Error("OpenRouter fallback failed."));
+    };
+
+    models.forEach((model, index) => {
+      const start = () => {
+        if (settled) return;
+
+        callOpenRouterModel({
+          apiKey,
+          requestBody,
+          model,
+          models,
+          index,
+          controller: controllers[index],
+        }).then((result) => {
+          if (settled) return;
+          settled = true;
+          controllers.forEach((controller, controllerIndex) => {
+            if (controllerIndex !== index) controller.abort();
+          });
+          resolveAttempt(result);
+        }).catch((error: OpenRouterAttemptError) => {
+          if (settled) return;
+          failures.push(error);
+          completed += 1;
+
+          if (!error.retryable) {
+            settled = true;
+            controllers.forEach((controller) => controller.abort());
+            rejectAttempt(error);
+            return;
+          }
+
+          finishWithFailureIfDone();
+        });
+      };
+
+      if (index === 0) {
+        start();
+        return;
+      }
+
+      setTimeout(start, FALLBACK_STAGGER_MS * index);
+    });
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const apiKeyOrResponse = getOpenRouterApiKey();
+
+  if (typeof apiKeyOrResponse !== "string") {
+    return apiKeyOrResponse;
+  }
+
+  const startedAt = Date.now();
+  let parsedRequest: ParsedAiRequest | null = null;
+  let currentUser: UserDocument | null = null;
+
+  try {
+    const json = await request.json();
+    const parsed = aiRequestSchema.safeParse(json);
+
+    if (!parsed.success) {
+      return createApiError(
+        "INVALID_REQUEST",
+        parsed.error.issues[0]?.message || "Invalid AI request.",
+        400,
+        parsed.error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join("; "),
+      );
+    }
+
+    parsedRequest = parsed.data;
+    currentUser = await getCurrentUserForAi(request);
+    const quotaResponse = await enforceAiQuota(currentUser);
+
+    if (quotaResponse) {
+      await logAiUsage({
+        userId: currentUser?._id,
+        email: currentUser?.email,
+        task: parsedRequest.task,
+        language: parsedRequest.language,
+        modelKey: parsedRequest.modelPreference,
+        requestedModels: [],
+        status: quotaResponse.status === 403 ? "disabled" : "quota-blocked",
+        durationMs: Date.now() - startedAt,
+        promptChars: parsedRequest.prompt.length,
+        contextChars: parsedRequest.context?.length || 0,
+        estimatedInputTokens: estimateTokens(`${parsedRequest.prompt}\n${parsedRequest.context || ""}`),
+        estimatedOutputTokens: 0,
+        errorCode: quotaResponse.status === 403 ? "AI_ACCESS_DISABLED" : "AI_QUOTA_EXCEEDED",
+        createdAt: new Date(),
+      });
+      return quotaResponse;
+    }
+
+    const { task, language, prompt, context, modelPreference, options } = parsedRequest;
+    const modelSelection = selectOpenRouterModel({
+      modelPreference,
+      task,
+      text: `${prompt}\n${context || ""}`,
+    });
+
+    const messages = buildOpenRouterMessages({ task, language, prompt, context, options });
+    const requestBody = {
+      messages,
+      temperature: 0.25,
+      top_p: 0.9,
+      max_tokens: getMaxTokens(task, options),
+    };
+
+    const attempt = await runFallbackModels({
+      apiKey: apiKeyOrResponse,
+      requestBody,
+      models: modelSelection.models,
+    });
+
+    await logAiUsage({
+      userId: currentUser?._id,
+      email: currentUser?.email,
+      task,
+      language,
+      modelKey: modelSelection.key,
+      requestedModels: modelSelection.models,
+      resolvedModel: attempt.resolvedModel,
+      status: "success",
+      durationMs: Date.now() - startedAt,
+      promptChars: prompt.length,
+      contextChars: context?.length || 0,
+      estimatedInputTokens: estimateTokens(`${prompt}\n${context || ""}`),
+      estimatedOutputTokens: estimateTokens(attempt.content),
+      reportedTotalTokens: attempt.payload?.usage?.total_tokens,
+      createdAt: new Date(),
+    });
+
+    return NextResponse.json({
+      content: attempt.content,
+      model: attempt.resolvedModel || attempt.model,
       modelKey: modelSelection.key,
       modelReason: modelSelection.reason,
       fallbackModels: modelSelection.models,
-      modelFallbackUsed: resolvedModel !== modelSelection.model,
+      modelFallbackUsed: attempt.index > 0 || attempt.resolvedModel !== modelSelection.model,
+      responseTimeMs: Date.now() - startedAt,
     });
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createApiError("INVALID_JSON", "Invalid request JSON.", 400);
     }
 
-    if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) {
-      return createApiError(
-        "OPENROUTER_NETWORK_ERROR",
-        "AI request timed out after 32 seconds. Try a shorter prompt or retry in a moment.",
-        504,
-        error.message,
-      );
+    if (parsedRequest) {
+      const attemptError = error instanceof OpenRouterAttemptError ? error : null;
+      await logAiUsage({
+        userId: currentUser?._id,
+        email: currentUser?.email,
+        task: parsedRequest.task,
+        language: parsedRequest.language,
+        modelKey: parsedRequest.modelPreference,
+        requestedModels: [],
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        promptChars: parsedRequest.prompt.length,
+        contextChars: parsedRequest.context?.length || 0,
+        estimatedInputTokens: estimateTokens(`${parsedRequest.prompt}\n${parsedRequest.context || ""}`),
+        estimatedOutputTokens: 0,
+        errorCode: attemptError?.code || "AI_SERVER_ERROR",
+        errorDetail: attemptError?.detail || (error instanceof Error ? error.message : undefined),
+        createdAt: new Date(),
+      });
+    }
+
+    if (error instanceof OpenRouterAttemptError) {
+      const friendlyTimeout = error.status === 504
+        ? "All fallback models were busy or timed out. Please retry; the system will automatically try the next available model."
+        : error.message;
+
+      return createApiError(error.code, friendlyTimeout, error.status, error.detail);
     }
 
     if (error instanceof TypeError) {

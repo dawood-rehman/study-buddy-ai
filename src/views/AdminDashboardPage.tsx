@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Activity, BookOpen, CheckCircle2, Loader2, Plus, ShieldCheck, Trash2, Upload, Users } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,67 @@ type AdminBookItem = {
   fullText?: string;
   estimatedPages?: string;
   status?: "active" | "draft";
+};
+
+type AdminUserItem = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "user";
+  createdAt: string;
+  authProvider: string;
+  aiQuotaLimit: number;
+  aiDisabled: boolean;
+  subscription: string;
+  permissions: string[];
+  monthlyUsage: {
+    requests: number;
+    successfulRequests: number;
+    estimatedTokens: number;
+  };
+};
+
+type AdminUsagePayload = {
+  summary: {
+    totalRequests: number;
+    successfulRequests: number;
+    failedRequests: number;
+    blockedRequests: number;
+    averageDurationMs: number;
+    estimatedTokens: number;
+  };
+  byModel: Array<{
+    model: string;
+    requests: number;
+    successfulRequests: number;
+    averageDurationMs: number;
+  }>;
+  byDay: Array<{
+    day: string;
+    requests: number;
+    successfulRequests: number;
+  }>;
+  logs: Array<{
+    id: string;
+    email: string;
+    task: string;
+    language: string;
+    resolvedModel: string;
+    status: string;
+    durationMs: number;
+    estimatedTokens: number;
+    errorCode?: string | null;
+    createdAt: string;
+  }>;
+};
+
+type UserDraftState = {
+  name: string;
+  email: string;
+  aiQuotaLimit: number;
+  aiDisabled: boolean;
+  subscription: string;
+  permissions: string;
 };
 
 type BookFormState = {
@@ -100,14 +161,19 @@ async function adminRequest<T>(url: string, init?: RequestInit) {
 export default function AdminDashboardPage() {
   const [items, setItems] = useState<AdminFeedbackItem[]>([]);
   const [books, setBooks] = useState<AdminBookItem[]>([]);
+  const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [usage, setUsage] = useState<AdminUsagePayload | null>(null);
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
   const [bookDrafts, setBookDrafts] = useState<Record<string, BookFormState>>({});
+  const [userDrafts, setUserDrafts] = useState<Record<string, UserDraftState>>({});
   const [selectedBookFile, setSelectedBookFile] = useState<File | null>(null);
   const [filter, setFilter] = useState<"all" | AdminFeedbackItem["status"]>("all");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, AdminFeedbackItem["status"]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isBooksLoading, setIsBooksLoading] = useState(true);
+  const [isUsersLoading, setIsUsersLoading] = useState(true);
+  const [isUsageLoading, setIsUsageLoading] = useState(true);
   const [isFileUploading, setIsFileUploading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
 
@@ -141,9 +207,37 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadUsers = async () => {
+    setIsUsersLoading(true);
+    try {
+      const payload = await adminRequest<{ users: AdminUserItem[] }>("/api/admin/users");
+      setUsers(payload.users);
+      setAccessError(null);
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Could not load admin users.");
+    } finally {
+      setIsUsersLoading(false);
+    }
+  };
+
+  const loadUsage = async () => {
+    setIsUsageLoading(true);
+    try {
+      const payload = await adminRequest<AdminUsagePayload>("/api/admin/usage");
+      setUsage(payload);
+      setAccessError(null);
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Could not load AI usage.");
+    } finally {
+      setIsUsageLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadItems();
     void loadBooks();
+    void loadUsers();
+    void loadUsage();
   }, []);
 
   const handleUpdate = async (item: AdminFeedbackItem) => {
@@ -198,6 +292,15 @@ export default function AdminDashboardPage() {
     fullText: book.fullText || "",
     estimatedPages: book.estimatedPages || "",
     status: book.status || "active",
+  });
+
+  const userToDraft = (user: AdminUserItem): UserDraftState => ({
+    name: user.name,
+    email: user.email,
+    aiQuotaLimit: user.aiQuotaLimit,
+    aiDisabled: user.aiDisabled,
+    subscription: user.subscription,
+    permissions: user.permissions.join(", "),
   });
 
   const handleCreateBook = async () => {
@@ -302,11 +405,53 @@ export default function AdminDashboardPage() {
       },
     }));
   };
+  const updateUserDraft = (user: AdminUserItem, patch: Partial<UserDraftState>) => {
+    setUserDrafts((current) => ({
+      ...current,
+      [user.id]: {
+        ...(current[user.id] || userToDraft(user)),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleUpdateUser = async (user: AdminUserItem) => {
+    const draft = userDrafts[user.id] || userToDraft(user);
+
+    try {
+      await adminRequest(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...draft,
+          aiQuotaLimit: Number(draft.aiQuotaLimit),
+          permissions: draft.permissions.split(",").map((item) => item.trim()).filter(Boolean),
+        }),
+      });
+      toast.success("User updated");
+      await Promise.all([loadUsers(), loadUsage()]);
+    } catch (error) {
+      toast.error("User update failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUserItem) => {
+    try {
+      await adminRequest(`/api/admin/users/${user.id}`, { method: "DELETE" });
+      toast.success("User deleted");
+      await Promise.all([loadUsers(), loadUsage()]);
+    } catch (error) {
+      toast.error("User delete failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
 
   return (
     <AuthGate title="Admin login required" description="Login with an admin email to manage feedback and complaints.">
       <div className="mx-auto w-full max-w-6xl">
-        <PageHeader icon={ShieldCheck} title="Admin Dashboard" description="Manage feedback, complaints, and dynamic book library content" />
+        <PageHeader icon={ShieldCheck} title="Admin Dashboard" description="Manage feedback, books, users, quotas, and AI activity" />
 
         {accessError ? (
           <div className="glass-card p-8 text-center">
@@ -316,9 +461,11 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <Tabs defaultValue="feedback" className="mt-6">
-            <TabsList className="mb-6 grid w-full grid-cols-2">
+            <TabsList className="mb-6 grid w-full grid-cols-2 lg:grid-cols-4">
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
               <TabsTrigger value="books">Books</TabsTrigger>
+              <TabsTrigger value="users">Users</TabsTrigger>
+              <TabsTrigger value="usage">AI Usage</TabsTrigger>
             </TabsList>
 
             <TabsContent value="feedback">
@@ -484,6 +631,156 @@ export default function AdminDashboardPage() {
                   })
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="users">
+              {isUsersLoading ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+                  <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+                  Loading users...
+                </div>
+              ) : users.length === 0 ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">No users found.</div>
+              ) : (
+                <div className="space-y-4">
+                  {users.map((user) => {
+                    const draft = userDrafts[user.id] || userToDraft(user);
+                    return (
+                      <article key={user.id} className="glass-card p-5">
+                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="feature-icon bg-secondary">
+                              <Users className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <h3 className="font-display text-lg font-semibold text-foreground">{user.name}</h3>
+                              <p className="text-sm text-muted-foreground">{user.email} - {user.role} - {user.authProvider}</p>
+                            </div>
+                          </div>
+                          <div className="text-right text-xs text-muted-foreground">
+                            <p>{user.monthlyUsage.requests} requests this month</p>
+                            <p>{user.monthlyUsage.estimatedTokens.toLocaleString()} estimated tokens</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          <Input value={draft.name} onChange={(event) => updateUserDraft(user, { name: event.target.value })} placeholder="Name" />
+                          <Input value={draft.email} onChange={(event) => updateUserDraft(user, { email: event.target.value })} placeholder="Email" type="email" />
+                          <Input value={String(draft.aiQuotaLimit)} onChange={(event) => updateUserDraft(user, { aiQuotaLimit: Number(event.target.value) })} placeholder="Monthly AI quota" type="number" min="0" />
+                          <Select value={draft.aiDisabled ? "disabled" : "enabled"} onValueChange={(value) => updateUserDraft(user, { aiDisabled: value === "disabled" })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="enabled">AI Enabled</SelectItem>
+                              <SelectItem value="disabled">AI Disabled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select value={draft.subscription} onValueChange={(value) => updateUserDraft(user, { subscription: value })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="free">Free</SelectItem>
+                              <SelectItem value="student">Student</SelectItem>
+                              <SelectItem value="premium">Premium</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input value={draft.permissions} onChange={(event) => updateUserDraft(user, { permissions: event.target.value })} placeholder="Permissions, comma separated" />
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button variant="outline" onClick={() => handleUpdateUser(user)}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" /> Save User
+                          </Button>
+                          <Button variant="outline" onClick={() => handleDeleteUser(user)} disabled={user.role === "admin"}>
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </Button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="usage">
+              {isUsageLoading || !usage ? (
+                <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+                  <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+                  Loading AI usage...
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ["Requests", usage.summary.totalRequests.toLocaleString()],
+                      ["Success", usage.summary.successfulRequests.toLocaleString()],
+                      ["Failed/Blocked", (usage.summary.failedRequests + usage.summary.blockedRequests).toLocaleString()],
+                      ["Avg Time", `${usage.summary.averageDurationMs} ms`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="glass-card p-4">
+                        <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
+                        <p className="mt-2 font-display text-2xl font-semibold text-foreground">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                    <section className="glass-card p-5">
+                      <div className="mb-4 flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-primary" />
+                        <h2 className="font-display text-lg font-semibold text-foreground">Model Activity</h2>
+                      </div>
+                      <div className="space-y-3">
+                        {usage.byModel.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No model activity yet.</p>
+                        ) : usage.byModel.map((item) => (
+                          <div key={item.model} className="rounded-md border border-border bg-background p-3">
+                            <div className="flex justify-between gap-3 text-sm">
+                              <span className="font-medium text-foreground">{item.model}</span>
+                              <span className="text-muted-foreground">{item.requests} requests</span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{item.successfulRequests} success - avg {item.averageDurationMs} ms</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="glass-card p-5">
+                      <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Daily Requests</h2>
+                      <div className="space-y-2">
+                        {usage.byDay.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No daily usage yet.</p>
+                        ) : usage.byDay.map((item) => (
+                          <div key={item.day} className="grid grid-cols-[110px_minmax(0,1fr)_60px] items-center gap-3 text-sm">
+                            <span className="text-muted-foreground">{item.day}</span>
+                            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, item.requests * 8)}%` }} />
+                            </div>
+                            <span className="text-right font-medium text-foreground">{item.requests}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="glass-card p-5">
+                    <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Recent AI Logs</h2>
+                    <div className="max-h-[520px] overflow-auto">
+                      <div className="min-w-[760px] divide-y divide-border text-sm">
+                        {usage.logs.length === 0 ? (
+                          <p className="py-6 text-center text-muted-foreground">No logs yet.</p>
+                        ) : usage.logs.map((log) => (
+                          <div key={log.id} className="grid grid-cols-[170px_160px_90px_150px_90px_90px] gap-3 py-3">
+                            <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleString()}</span>
+                            <span className="truncate font-medium text-foreground">{log.email}</span>
+                            <span className="text-muted-foreground">{log.task}</span>
+                            <span className="truncate text-muted-foreground">{log.resolvedModel}</span>
+                            <span className={log.status === "success" ? "text-primary" : "text-destructive"}>{log.status}</span>
+                            <span className="text-right text-muted-foreground">{log.durationMs} ms</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}
