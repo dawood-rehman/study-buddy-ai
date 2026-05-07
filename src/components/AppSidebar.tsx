@@ -32,8 +32,6 @@ const moreItems = [
   { title: "Resume Builder", url: "/resume", icon: Pencil },
   { title: "Books", url: "/books", icon: BookMarked },
   { title: "Saved Library", url: "/library", icon: Library },
-  { title: "Feedback", url: "/feedback", icon: MessageSquarePlus },
-  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 function NavGroup({ label, items, collapsed }: { label: string; items: typeof mainItems; collapsed: boolean }) {
@@ -63,6 +61,8 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const collapsed = state === "collapsed";
   const accountItems = [
+    { title: "Feedback", url: "/feedback", icon: MessageSquarePlus },
+    { title: "Settings", url: "/settings", icon: Settings },
     ...(user?.role === "admin" ? [{ title: "Admin", url: "/admin", icon: ShieldCheck }] : []),
     { title: user ? "Logout" : "Login", url: "/login", icon: user ? LogOut : LogIn },
   ];
