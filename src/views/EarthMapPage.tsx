@@ -373,13 +373,13 @@ export default function EarthMapPage() {
         <PageHeader icon={Globe2} title="AI Earth Map" description="Explore a real interactive world map with AI location knowledge down to city level" />
 
         <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <section className="glass-card p-5">
+          <section className="glass-card p-4 sm:p-5">
             <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search city, country, landmark, region..." className="pl-10" />
               </div>
-              <Button className="gradient-primary border-0" onClick={() => void handleSearchExplore()} disabled={isLoading || isSearching}>
+              <Button className="gradient-primary w-full border-0 lg:w-auto" onClick={() => void handleSearchExplore()} disabled={isLoading || isSearching}>
                 {isLoading || isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Explore
               </Button>
@@ -391,14 +391,14 @@ export default function EarthMapPage() {
               <p className="text-sm text-muted-foreground">{selectedPlace.region}</p>
             </div>
 
-            <div className="relative min-h-[560px] overflow-hidden rounded-md border border-border bg-muted">
+            <div className="relative min-h-[430px] overflow-hidden rounded-md border border-border bg-muted sm:min-h-[560px]">
               <div ref={mapContainerRef} className="absolute inset-0 z-0" />
               {isMapLoading ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
                   <Loader2 className="h-7 w-7 animate-spin text-primary" />
                 </div>
               ) : null}
-              <div className="absolute bottom-4 left-4 right-4 z-[500] grid grid-cols-2 gap-2 md:grid-cols-4">
+              <div className="absolute bottom-3 left-3 right-3 z-[500] grid max-h-40 grid-cols-1 gap-2 overflow-y-auto sm:bottom-4 sm:left-4 sm:right-4 sm:grid-cols-2 md:grid-cols-4">
                 {filteredPlaces.map((place) => (
                   <button key={`quick-${place.name}`} onClick={() => void explorePlace(place)} className="rounded-md border border-border bg-background/95 px-3 py-2 text-left text-xs font-medium text-foreground shadow-sm backdrop-blur hover:bg-background">
                     {place.name}
@@ -410,7 +410,7 @@ export default function EarthMapPage() {
           </section>
 
           <aside className="space-y-5">
-            <section className="glass-card p-5">
+            <section className="glass-card p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-primary" />
                 <h2 className="font-display text-lg font-semibold text-foreground">{selectedPlace.name}</h2>
@@ -428,7 +428,7 @@ export default function EarthMapPage() {
               </Button>
             </section>
 
-            <section className="glass-card p-5">
+            <section className="glass-card p-4 sm:p-5">
               {response ? (
                 <GeneratedContent content={response} title={`${selectedPlace.name} AI Guide`} type="study" />
               ) : (

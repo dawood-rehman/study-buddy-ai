@@ -234,7 +234,7 @@ export default function BooksPage() {
           </div>
         ) : null}
 
-        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_230px_220px]">
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_230px_220px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -301,7 +301,7 @@ export default function BooksPage() {
           </div>
         </div>
 
-        <section className="glass-card mb-6 p-5">
+        <section className="glass-card mb-6 p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
             <h2 className="font-display text-lg font-semibold text-foreground">AI Book Assistant</h2>
@@ -313,7 +313,7 @@ export default function BooksPage() {
               placeholder="Example: I want motivational books, suggest books for learning programming, I feel depressed recommend something uplifting, is Pride and Prejudice available?"
               className="min-h-[92px]"
             />
-            <Button className="gradient-primary border-0 lg:self-end" onClick={handleAssistant} disabled={isAssistantLoading}>
+            <Button className="gradient-primary w-full border-0 lg:w-auto lg:self-end" onClick={handleAssistant} disabled={isAssistantLoading}>
               {isAssistantLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Ask Librarian
             </Button>
@@ -341,12 +341,13 @@ export default function BooksPage() {
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]">
           <div>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display font-semibold text-foreground">Library Results</h2>
-              <div className="flex items-center gap-2">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <h2 className="font-display font-semibold text-foreground">Library Results</h2>
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:w-auto">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full"
                   disabled={!previousPage || isSearching}
                   onClick={() => {
                     setActiveBook(null);
@@ -360,6 +361,7 @@ export default function BooksPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full"
                   disabled={!nextPage || isSearching}
                   onClick={() => {
                     setActiveBook(null);
@@ -384,7 +386,7 @@ export default function BooksPage() {
                   </div>
                 ) : books.map((book) => (
                   <article key={book.id} className="glass-card overflow-hidden">
-                    <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-4 p-4">
+                    <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-4 sm:p-4">
                       <div className="aspect-[2/3] overflow-hidden rounded-md border border-border bg-secondary">
                         {book.coverUrl ? (
                           <img src={book.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -439,7 +441,7 @@ export default function BooksPage() {
             )}
           </div>
 
-          <aside ref={readerRef} className="glass-card p-5 xl:sticky xl:top-20 xl:self-start">
+          <aside ref={readerRef} className="glass-card p-4 sm:p-5 xl:sticky xl:top-20 xl:self-start">
             {activeBook ? (
               <>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -467,7 +469,7 @@ export default function BooksPage() {
                     </a>
                   </Button>
                   <Select value={readerSize} onValueChange={setReaderSize}>
-                    <SelectTrigger className="h-9 w-[140px]">
+                    <SelectTrigger className="h-9 w-full sm:w-[140px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -478,7 +480,7 @@ export default function BooksPage() {
                   </Select>
                 </div>
 
-                <div className="max-h-[680px] overflow-y-auto rounded-md border border-border bg-[#fbfaf7] p-5 shadow-inner dark:bg-slate-950">
+                <div className="max-h-[70vh] overflow-y-auto rounded-md border border-border bg-[#fbfaf7] p-4 shadow-inner dark:bg-slate-950 sm:max-h-[680px] sm:p-5">
                   {readerState === "loading" ? (
                     <div className="flex min-h-[360px] items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -514,7 +516,7 @@ export default function BooksPage() {
                       <div className="rounded-md border border-border bg-background p-3 text-sm leading-6 text-muted-foreground">
                         PDF preview is loaded from the uploaded/source file. Use Offline Book to download it.
                       </div>
-                      <iframe title={`${activeBook.title} PDF reader`} src={activeBook.pdfUrl} className="h-[620px] w-full rounded-md border border-border bg-white dark:bg-slate-950" />
+                      <iframe title={`${activeBook.title} PDF reader`} src={activeBook.pdfUrl} className="h-[70vh] min-h-[360px] w-full rounded-md border border-border bg-white dark:bg-slate-950 sm:h-[620px]" />
                     </div>
                   ) : readerState === "error" ? (
                     <div className="text-sm leading-6 text-muted-foreground">

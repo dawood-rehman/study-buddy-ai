@@ -114,6 +114,12 @@
 
   * {
     @apply border-border;
+    min-width: 0;
+  }
+
+  html {
+    overflow-x: hidden;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -122,6 +128,7 @@
     min-height: 100vh;
     background-image: linear-gradient(180deg, hsl(150 20% 98%) 0%, hsl(205 38% 97%) 100%);
     transition: background-color 180ms ease, color 180ms ease;
+    overflow-x: hidden;
   }
 
   .dark body {
@@ -135,6 +142,14 @@
 
   button, input, textarea, select {
     font: inherit;
+  }
+
+  img, video, canvas, svg {
+    max-width: 100%;
+  }
+
+  p, li, h1, h2, h3, h4, h5, h6, a, span, td, th {
+    overflow-wrap: anywhere;
   }
 
   main, header, nav, aside, section, article, input, textarea, button {
@@ -152,6 +167,7 @@
   .glass-card {
     @apply bg-card/90 backdrop-blur-sm border border-border rounded-lg;
     box-shadow: var(--shadow-card);
+    min-width: 0;
   }
 
   .glass-card-elevated {
@@ -183,6 +199,15 @@
   .bottom-nav {
     @apply fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border;
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .responsive-panel {
+    @apply w-full max-w-full min-w-0 overflow-hidden;
+  }
+
+  .responsive-scroll {
+    @apply w-full max-w-full overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .result-text {

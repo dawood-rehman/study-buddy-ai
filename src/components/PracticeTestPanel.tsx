@@ -129,7 +129,7 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
   };
 
   return (
-    <section className={`glass-card p-5 ${className}`}>
+    <section className={`glass-card p-4 sm:p-5 ${className}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="rounded-md bg-primary/10 p-2 text-primary">
@@ -141,7 +141,7 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
           </div>
         </div>
         <Select value={level} onValueChange={(value) => setLevel(value as PracticeLevel)}>
-          <SelectTrigger className="w-[210px]">
+          <SelectTrigger className="w-full sm:w-[210px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -154,9 +154,9 @@ export function PracticeTestPanel({ language, sourceTitle, defaultContent = "", 
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <label className="text-sm font-medium text-foreground">Practice Material</label>
-            <Button type="button" variant="ghost" size="sm" onClick={useCurrentContent}>
+            <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={useCurrentContent}>
               Use Current Content
             </Button>
           </div>

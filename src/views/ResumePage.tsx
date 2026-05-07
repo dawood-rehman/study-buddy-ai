@@ -472,7 +472,7 @@ export default function ResumePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)]">
-        <div className="glass-card p-5 sm:p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="mb-5">
             <h3 className="mb-3 font-display font-semibold text-foreground">ATS-Friendly Templates</h3>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -553,9 +553,9 @@ export default function ResumePage() {
 
         <div className="glass-card p-4 sm:p-6">
           <h3 className="mb-4 font-display font-semibold text-foreground">ATS Preview</h3>
-          <div className="min-h-[680px] rounded-md border border-border bg-white p-6 text-[#151515] shadow-sm sm:p-8">
+          <div className="responsive-scroll min-h-[520px] rounded-md border border-border bg-white p-4 text-[#151515] shadow-sm sm:min-h-[680px] sm:p-8">
             {data.name ? (
-              <div className="mx-auto max-w-[720px] text-sm leading-6">
+              <div className="mx-auto min-w-[280px] max-w-[720px] text-sm leading-6">
                 <div className="mb-5 text-center">
                   <h2 className="font-serif text-2xl font-bold uppercase tracking-normal">{data.name}</h2>
                   {data.title && <p className="mt-1 font-medium">{data.title}</p>}
@@ -593,7 +593,7 @@ export default function ResumePage() {
                 )}
               </div>
             ) : (
-              <div className="flex min-h-[560px] items-center justify-center text-center text-sm text-muted-foreground">
+              <div className="flex min-h-[360px] items-center justify-center text-center text-sm text-muted-foreground sm:min-h-[560px]">
                 Fill in your details or load the ATS template to see a real resume preview.
               </div>
             )}

@@ -74,9 +74,9 @@ export default function LibraryPage() {
         </div>
 
         {isLoading ? (
-          <div className="glass-card p-10 text-center text-sm text-muted-foreground">Loading saved library...</div>
+          <div className="glass-card p-6 text-center text-sm text-muted-foreground sm:p-10">Loading saved library...</div>
         ) : filteredItems.length === 0 ? (
-          <div className="glass-card p-10 text-center">
+          <div className="glass-card p-6 text-center sm:p-10">
             <Library className="mx-auto mb-4 h-12 w-12 text-muted-foreground/30" />
             <h3 className="mb-2 font-display font-semibold text-foreground">Your Library is Empty</h3>
             <p className="mx-auto max-w-md text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ export default function LibraryPage() {
         ) : (
           <div className="space-y-5">
             {Object.entries(groupedItems).map(([folderName, folderItems]) => (
-              <section key={folderName} className="glass-card p-5">
+              <section key={folderName} className="glass-card p-4 sm:p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <FolderOpen className="h-5 w-5 text-primary" />
                   <h2 className="font-display font-semibold text-foreground">{folderName}</h2>

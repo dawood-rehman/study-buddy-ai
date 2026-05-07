@@ -85,8 +85,8 @@ function MarkdownRenderer({ content }: { content: string }) {
       }
 
       elements.push(
-        <div key={`table-${index}`} className="my-4 overflow-x-auto rounded-md border border-border">
-          <table className="w-full border-collapse text-left text-sm">
+        <div key={`table-${index}`} className="responsive-scroll my-4 rounded-md border border-border">
+          <table className="min-w-[560px] w-full border-collapse text-left text-sm">
             <thead className="bg-secondary/70 text-secondary-foreground">
               <tr>
                 {header.map((cell) => (
@@ -122,7 +122,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
       const ListTag = ordered ? "ol" : "ul";
       elements.push(
-        <ListTag key={`list-${index}`} className={`my-3 space-y-2 pl-5 text-sm leading-6 ${ordered ? "list-decimal" : "list-disc"}`}>
+      <ListTag key={`list-${index}`} className={`my-3 space-y-2 pl-5 text-sm leading-6 break-words ${ordered ? "list-decimal" : "list-disc"}`}>
           {items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{renderInline(item)}</li>)}
         </ListTag>,
       );
@@ -143,13 +143,13 @@ function MarkdownRenderer({ content }: { content: string }) {
     }
 
     elements.push(
-      <p key={`p-${index}`} className="my-3 text-sm leading-7 text-foreground">
+      <p key={`p-${index}`} className="my-3 break-words text-sm leading-7 text-foreground">
         {renderInline(paragraph.join(" "))}
       </p>,
     );
   }
 
-  return <div className="rounded-md border border-border bg-background p-4 sm:p-5">{elements}</div>;
+  return <div className="responsive-panel rounded-md border border-border bg-background p-4 sm:p-5">{elements}</div>;
 }
 
 export function GeneratedContent({
@@ -193,10 +193,10 @@ export function GeneratedContent({
   return (
     <div className={className}>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={handleCopy}>
+        <Button variant="outline" size="sm" className="min-w-0" onClick={handleCopy}>
           <Copy className="mr-2 h-4 w-4" /> Copy
         </Button>
-        <Button variant="outline" size="sm" onClick={handleSave}>
+        <Button variant="outline" size="sm" className="min-w-0" onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> Save
         </Button>
       </div>

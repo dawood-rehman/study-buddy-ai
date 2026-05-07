@@ -61,12 +61,12 @@ export default function PastPapersPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
+      <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader icon={FileText} title="Past Paper Solver" description="Upload past papers and get step-by-step solutions" />
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
 
-      <div className="glass-card p-6 mb-6">
+      <div className="glass-card mb-6 p-4 sm:p-6">
         <h3 className="font-display font-semibold text-foreground mb-4">Upload Past Paper</h3>
         <FileUpload onFileSelect={handleFileSelect} />
         <Textarea
@@ -81,7 +81,7 @@ export default function PastPapersPage() {
         </Button>
       </div>
 
-      <div className="glass-card p-6">
+      <div className="glass-card p-4 sm:p-6">
         {solution ? (
           <GeneratedContent content={solution} title="Past Paper Solution" type="past-paper" />
         ) : (

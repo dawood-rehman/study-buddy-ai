@@ -26,7 +26,7 @@ export function LanguageToggle({ value, onChange }: LanguageToggleProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="w-full justify-center gap-2 sm:w-auto">
           <Globe className="h-4 w-4" />
           {labels[value]}
         </Button>

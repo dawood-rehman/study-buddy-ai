@@ -96,7 +96,7 @@ export default function CounselingPage() {
       description="Counseling stores personal study and career context, so login is required before using these tools."
     >
       <div className="mx-auto w-full max-w-5xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
           <PageHeader icon={MessageSquare} title="Study Counseling" description="Personalized study planning, degree guidance, and career recommendations" />
           <LanguageToggle value={language} onChange={setLanguage} />
         </div>
@@ -109,7 +109,7 @@ export default function CounselingPage() {
           </TabsList>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               <TabsContent value="planner" className="mt-0 space-y-4">
                 <SectionHeader mode="planner" />
                 <Input value={fields.studyLevel} onChange={(event) => updateField("studyLevel", event.target.value)} placeholder="Study level, e.g. Matric, A-Levels, BSCS" />
@@ -136,11 +136,11 @@ export default function CounselingPage() {
               </Button>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               {plan ? (
                 <GeneratedContent content={plan} title={modeMeta[mode].title} type="counseling" />
               ) : (
-                <div className="flex min-h-[360px] items-center justify-center text-center">
+                <div className="flex min-h-[280px] items-center justify-center text-center sm:min-h-[360px]">
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
                     Fill the selected counseling form to receive a structured plan with priorities, schedules, recommendations, and next steps.
                   </p>

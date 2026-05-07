@@ -89,7 +89,7 @@ export default function FeedbackPage() {
         <PageHeader icon={MessageSquarePlus} title="Feedback & Complaints" description="Send feedback, complaints, bugs, or feature requests directly to admin" />
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <div className="glass-card p-5">
+          <div className="glass-card p-4 sm:p-5">
             <h3 className="mb-4 font-display font-semibold text-foreground">Send a Message</h3>
             <div className="space-y-3">
               <Select value={category} onValueChange={(value) => setCategory(value as FeedbackItem["category"])}>
@@ -110,7 +110,7 @@ export default function FeedbackPage() {
             </div>
           </div>
 
-          <div className="glass-card p-5">
+          <div className="glass-card p-4 sm:p-5">
             <h3 className="mb-4 font-display font-semibold text-foreground">Your Messages</h3>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading messages...</p>

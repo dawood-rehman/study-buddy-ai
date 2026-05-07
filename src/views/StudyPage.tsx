@@ -68,15 +68,15 @@ export default function StudyPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
+      <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader icon={BookOpen} title="Study Helper" description="Upload notes and get AI-powered explanations" />
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
 
       {/* Mode Selection */}
-      <div className="flex gap-2 mb-6">
+      <div className="mb-6 flex gap-2">
         <Select value={mode} onValueChange={setMode}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Explanation mode" />
           </SelectTrigger>
           <SelectContent>
@@ -90,7 +90,7 @@ export default function StudyPage() {
 
       {/* Input Methods */}
       <Tabs defaultValue="upload" className="mb-6">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 w-full sm:w-auto">
           <TabsTrigger value="upload">Upload File</TabsTrigger>
           <TabsTrigger value="text">Paste Text</TabsTrigger>
         </TabsList>
@@ -110,21 +110,21 @@ export default function StudyPage() {
       {/* Ask Question */}
       <div className="glass-card p-4 mb-6">
         <label className="text-sm font-medium text-foreground block mb-2">Ask a question about the material</label>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Textarea
             placeholder="e.g., Explain photosynthesis in simple terms..."
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             className="min-h-[60px] flex-1"
           />
-          <Button className="gradient-primary border-0 self-end" onClick={handleAsk} disabled={isLoading}>
+          <Button className="gradient-primary w-full border-0 sm:w-auto sm:self-end" onClick={handleAsk} disabled={isLoading}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
       {/* Response Area */}
-      <div className="glass-card p-6 min-h-[200px] flex items-center justify-center">
+      <div className="glass-card flex min-h-[200px] items-center justify-center p-4 sm:p-6">
         {response ? (
           <GeneratedContent content={response} title={question.trim() || "Study Explanation"} type="study" className="w-full" />
         ) : (

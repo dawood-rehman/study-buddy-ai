@@ -133,7 +133,7 @@ export default function GrammarPage() {
       <PageHeader icon={Languages} title="Grammar Coach" description="Build English foundations and practice with an AI English tutor" />
 
       <Tabs defaultValue="foundation" className="mt-6">
-        <TabsList className="mb-6 grid w-full grid-cols-3">
+        <TabsList className="mb-6 grid w-full grid-cols-1 sm:grid-cols-3">
           <TabsTrigger value="foundation">English Grammar Foundation</TabsTrigger>
           <TabsTrigger value="tutor">AI English Tutor</TabsTrigger>
           <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
@@ -166,13 +166,13 @@ export default function GrammarPage() {
               ))}
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="font-display text-xl font-semibold text-foreground">{selectedTopic.title}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">{selectedTopic.desc}</p>
                 </div>
-                <Button className="gradient-primary border-0" onClick={handleGenerateLesson} disabled={isLessonLoading}>
+                <Button className="gradient-primary w-full border-0 sm:w-auto" onClick={handleGenerateLesson} disabled={isLessonLoading}>
                   {isLessonLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                   Generate Lesson
                 </Button>
@@ -190,7 +190,7 @@ export default function GrammarPage() {
 
         <TabsContent value="tutor">
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-primary" />
                 <h2 className="font-display text-lg font-semibold text-foreground">Practice in English</h2>
@@ -206,11 +206,11 @@ export default function GrammarPage() {
                 Get Tutor Feedback
               </Button>
             </div>
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               {tutorReply ? (
                 <GeneratedContent content={tutorReply} title="AI English Tutor Feedback" type="grammar" />
               ) : (
-                <div className="flex min-h-[280px] items-center justify-center text-center">
+                <div className="flex min-h-[240px] items-center justify-center text-center sm:min-h-[280px]">
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
                     The tutor will correct grammar, improve vocabulary, suggest pronunciation practice, and continue the conversation so you can build fluency and confidence.
                   </p>
@@ -222,7 +222,7 @@ export default function GrammarPage() {
 
         <TabsContent value="roadmap">
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Map className="h-5 w-5 text-primary" />
                 <h2 className="font-display text-lg font-semibold text-foreground">Personal English Roadmap</h2>
@@ -252,11 +252,11 @@ export default function GrammarPage() {
               </Button>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-4 sm:p-5">
               {roadmap ? (
                 <GeneratedContent content={roadmap} title="English Learning Roadmap" type="grammar" />
               ) : (
-                <div className="flex min-h-[320px] items-center justify-center text-center">
+                <div className="flex min-h-[260px] items-center justify-center text-center sm:min-h-[320px]">
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
                     Choose your level and goals to get a practical roadmap with weekly targets, daily practice, grammar sequence, speaking drills, and progress checks.
                   </p>

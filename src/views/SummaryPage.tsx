@@ -63,13 +63,13 @@ export default function SummaryPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
+      <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader icon={ScrollText} title="Summary Generator" description="Get concise summaries and revision notes" />
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
 
       {/* Summary Type Tabs */}
-      <div className="flex gap-2 flex-wrap mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { id: "short", label: "Short Summary" },
           { id: "detailed", label: "Detailed Summary" },
@@ -79,7 +79,7 @@ export default function SummaryPage() {
           <button
             key={t.id}
             onClick={() => setSummaryType(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               summaryType === t.id
                 ? "gradient-primary text-primary-foreground"
                 : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
@@ -91,7 +91,7 @@ export default function SummaryPage() {
       </div>
 
       <Tabs defaultValue="upload" className="mb-6">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 w-full sm:w-auto">
           <TabsTrigger value="upload">Upload File</TabsTrigger>
           <TabsTrigger value="text">Paste Text</TabsTrigger>
         </TabsList>
@@ -113,7 +113,7 @@ export default function SummaryPage() {
         {isLoading ? "Generating..." : "Generate Summary"}
       </Button>
 
-      <div className="glass-card p-6 mt-6">
+      <div className="glass-card mt-6 p-4 sm:p-6">
         {summary ? (
           <GeneratedContent content={summary} title={`${summaryType} Summary`} type="summary" />
         ) : (

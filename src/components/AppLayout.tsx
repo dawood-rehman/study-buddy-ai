@@ -14,20 +14,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="flex min-h-screen w-full overflow-x-hidden">
         <div className="hidden md:block">
           <AppSidebar />
         </div>
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center border-b border-border px-4 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-40 flex min-h-14 items-center border-b border-border bg-card/50 px-3 backdrop-blur-sm sm:px-4">
             <SidebarTrigger className="hidden md:flex mr-3" />
-            <div className="flex items-center gap-2 md:hidden">
-              <div className="h-7 w-7 rounded-lg gradient-primary flex items-center justify-center">
+            <div className="flex min-w-0 items-center gap-2 md:hidden">
+              <div className="gradient-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                 <span className="text-primary-foreground text-xs font-bold">S</span>
               </div>
-              <span className="font-display font-bold text-foreground">StudyAI</span>
+              <span className="truncate font-display font-bold text-foreground">StudyAI</span>
             </div>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <ThemeToggle />
               {user ? (
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => void signOut()}>
@@ -44,7 +44,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </div>
           </header>
-          <main className="flex-1 px-4 py-5 pb-24 sm:px-5 md:px-6 md:py-7 md:pb-8 lg:px-8">
+          <main className="w-full min-w-0 flex-1 overflow-x-hidden px-3 py-5 pb-24 sm:px-5 md:px-6 md:py-7 md:pb-8 lg:px-8">
             {children}
           </main>
         </div>

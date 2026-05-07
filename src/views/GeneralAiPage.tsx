@@ -67,14 +67,14 @@ export default function GeneralAiPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader icon={Bot} title="General AI" description="Ask general, subject-specific, or file-based questions with structured AI responses" />
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="space-y-5">
-          <div className="glass-card p-5">
+          <div className="glass-card p-4 sm:p-5">
             <Textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
@@ -87,7 +87,7 @@ export default function GeneralAiPage() {
             </Button>
           </div>
 
-          <div className="glass-card p-5">
+          <div className="glass-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <FileUp className="h-5 w-5 text-primary" />
               <h2 className="font-display font-semibold text-foreground">Upload Context</h2>
@@ -102,11 +102,11 @@ export default function GeneralAiPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5">
+        <div className="glass-card p-4 sm:p-5">
           {response ? (
             <GeneratedContent content={response} title="General AI Response" type="general-ai" />
           ) : (
-            <div className="flex min-h-[420px] items-center justify-center text-center">
+            <div className="flex min-h-[300px] items-center justify-center text-center sm:min-h-[420px]">
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
                 Responses will appear here with copy and save controls. File uploads require login; prompt-only AI remains available without login.
               </p>

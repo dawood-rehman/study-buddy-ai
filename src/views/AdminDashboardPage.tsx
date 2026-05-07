@@ -588,7 +588,7 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <Tabs defaultValue="feedback" className="mt-6">
-            <TabsList className="mb-6 grid w-full grid-cols-2 lg:grid-cols-5">
+            <TabsList className="mb-6 grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
               <TabsTrigger value="books">Books</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
@@ -597,9 +597,9 @@ export default function AdminDashboardPage() {
             </TabsList>
 
             <TabsContent value="feedback">
-              <div className="mb-4 flex justify-end">
+              <div className="mb-4 flex justify-stretch sm:justify-end">
                 <Select value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
@@ -618,7 +618,7 @@ export default function AdminDashboardPage() {
               ) : (
                 <div className="space-y-4">
                   {filteredItems.map((item) => (
-                    <article key={item.id} className="glass-card p-5">
+                    <article key={item.id} className="glass-card p-4 sm:p-5">
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-xs uppercase tracking-normal text-muted-foreground">{item.category}</p>
@@ -646,7 +646,7 @@ export default function AdminDashboardPage() {
                           placeholder="Write admin reply..."
                           className="min-h-[96px]"
                         />
-                        <Button className="gradient-primary border-0" onClick={() => handleUpdate(item)}>
+                        <Button className="gradient-primary w-full border-0 md:w-auto" onClick={() => handleUpdate(item)}>
                           <CheckCircle2 className="mr-2 h-4 w-4" /> Update
                         </Button>
                       </div>
@@ -657,7 +657,7 @@ export default function AdminDashboardPage() {
             </TabsContent>
 
             <TabsContent value="books">
-              <div className="glass-card p-5">
+              <div className="glass-card p-4 sm:p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-primary" />
                   <h2 className="font-display text-lg font-semibold text-foreground">Add New Book</h2>
@@ -700,7 +700,7 @@ export default function AdminDashboardPage() {
                       accept="application/pdf,text/plain,application/epub+zip,.pdf,.txt,.epub"
                       onChange={(event) => setSelectedBookFile(event.target.files?.[0] || null)}
                     />
-                    <Button type="button" variant="outline" onClick={handleUploadBookFile} disabled={isFileUploading}>
+                    <Button type="button" variant="outline" className="w-full md:w-auto" onClick={handleUploadBookFile} disabled={isFileUploading}>
                       {isFileUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                       Upload File
                     </Button>
@@ -728,7 +728,7 @@ export default function AdminDashboardPage() {
                   books.map((book) => {
                     const draft = bookDrafts[book.id] || bookToForm(book);
                     return (
-                      <article key={book.id} className="glass-card p-5">
+                      <article key={book.id} className="glass-card p-4 sm:p-5">
                         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h3 className="font-display text-lg font-semibold text-foreground">{book.title}</h3>
@@ -774,7 +774,7 @@ export default function AdminDashboardPage() {
                   {users.map((user) => {
                     const draft = userDrafts[user.id] || userToDraft(user);
                     return (
-                      <article key={user.id} className="glass-card p-5">
+                      <article key={user.id} className="glass-card p-4 sm:p-5">
                         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
                             <div className="feature-icon bg-secondary">
@@ -866,7 +866,7 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                    <section className="glass-card p-5">
+                    <section className="glass-card p-4 sm:p-5">
                       <div className="mb-4 flex items-center gap-2">
                         <Activity className="h-5 w-5 text-primary" />
                         <h2 className="font-display text-lg font-semibold text-foreground">Model Activity</h2>
@@ -886,13 +886,13 @@ export default function AdminDashboardPage() {
                       </div>
                     </section>
 
-                    <section className="glass-card p-5">
+                    <section className="glass-card p-4 sm:p-5">
                       <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Daily Requests</h2>
                       <div className="space-y-2">
                         {usage.byDay.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No daily usage yet.</p>
                         ) : usage.byDay.map((item) => (
-                          <div key={item.day} className="grid grid-cols-[110px_minmax(0,1fr)_60px] items-center gap-3 text-sm">
+                          <div key={item.day} className="grid grid-cols-[86px_minmax(0,1fr)_44px] items-center gap-2 text-xs sm:grid-cols-[110px_minmax(0,1fr)_60px] sm:gap-3 sm:text-sm">
                             <span className="text-muted-foreground">{item.day}</span>
                             <div className="h-2 overflow-hidden rounded-full bg-secondary">
                               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, item.requests * 8)}%` }} />
@@ -904,7 +904,7 @@ export default function AdminDashboardPage() {
                     </section>
                   </div>
 
-                  <section className="glass-card p-5">
+                  <section className="glass-card p-4 sm:p-5">
                     <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Recent AI Logs</h2>
                     <div className="max-h-[520px] overflow-auto">
                       <div className="min-w-[760px] divide-y divide-border text-sm">
@@ -949,7 +949,7 @@ export default function AdminDashboardPage() {
                     ))}
                   </div>
 
-                  <section className="glass-card p-5">
+                  <section className="glass-card p-4 sm:p-5">
                     <div className="mb-4 flex items-center gap-2">
                       <CreditCard className="h-5 w-5 text-primary" />
                       <h2 className="font-display text-lg font-semibold text-foreground">Create Payment Verification</h2>
@@ -993,7 +993,7 @@ export default function AdminDashboardPage() {
                     </Button>
                   </section>
 
-                  <section className="glass-card p-5">
+                  <section className="glass-card p-4 sm:p-5">
                     <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Payment Instructions</h2>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="rounded-md border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
@@ -1007,7 +1007,7 @@ export default function AdminDashboardPage() {
                     </div>
                   </section>
 
-                  <section className="glass-card p-5">
+                  <section className="glass-card p-4 sm:p-5">
                     <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Payment Verifications</h2>
                     <div className="space-y-3">
                       {payments.payments.length === 0 ? (

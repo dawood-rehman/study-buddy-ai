@@ -54,7 +54,7 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.j
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+        className={`cursor-pointer rounded-lg border-2 border-dashed p-5 text-center transition-colors sm:p-8 ${
           dragActive ? "border-primary bg-secondary/50" : "border-border hover:border-primary/50"
         }`}
         onClick={() => {
@@ -72,7 +72,7 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.j
         ) : (
           <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
         )}
-        <p className="text-sm font-medium text-foreground mb-1">Drop your file here or click to browse</p>
+        <p className="mb-1 text-sm font-medium text-foreground">Drop your file here or click to browse</p>
         <p className="text-xs text-muted-foreground">
           {requireAuth && !isAuthenticated
             ? "Login is required for uploads"
@@ -88,10 +88,10 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.j
       </div>
 
       {selectedFile && (
-        <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
-          <File className="h-5 w-5 text-primary" />
-          <span className="text-sm font-medium text-foreground flex-1 truncate">{selectedFile.name}</span>
-          <span className="text-xs text-muted-foreground">{(selectedFile.size / 1024 / 1024).toFixed(1)}MB</span>
+        <div className="flex min-w-0 items-center gap-3 rounded-lg bg-secondary p-3">
+          <File className="h-5 w-5 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{selectedFile.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{(selectedFile.size / 1024 / 1024).toFixed(1)}MB</span>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedFile(null)}>
             <X className="h-4 w-4" />
           </Button>

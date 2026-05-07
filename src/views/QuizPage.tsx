@@ -66,7 +66,7 @@ export default function QuizPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
+      <div className="mb-6 flex min-w-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader icon={Brain} title="Quiz Generator" description="Generate practice questions from your study material" />
         <LanguageToggle value={language} onChange={setLanguage} />
       </div>
@@ -98,7 +98,7 @@ export default function QuizPage() {
       </div>
 
       <Tabs defaultValue="upload" className="mb-6">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 w-full sm:w-auto">
           <TabsTrigger value="upload">Upload File</TabsTrigger>
           <TabsTrigger value="text">Paste Text</TabsTrigger>
         </TabsList>
@@ -121,7 +121,7 @@ export default function QuizPage() {
       </Button>
 
       {/* Quiz Area (empty state) */}
-      <div className="glass-card p-6 mt-6">
+      <div className="glass-card mt-6 p-4 sm:p-6">
         {quiz ? (
           <GeneratedContent content={quiz} title="Generated Quiz" type="quiz" />
         ) : (
