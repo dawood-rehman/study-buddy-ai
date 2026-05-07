@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Brain, Loader2, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
+import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,7 +122,7 @@ export default function QuizPage() {
       {/* Quiz Area (empty state) */}
       <div className="glass-card p-6 mt-6">
         {quiz ? (
-          <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">{quiz}</div>
+          <GeneratedContent content={quiz} title="Generated Quiz" type="quiz" />
         ) : (
           <div className="text-center">
             <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />

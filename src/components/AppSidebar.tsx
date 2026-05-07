@@ -3,7 +3,7 @@
 import {
   BookOpen, Brain, FileText, Home, Languages,
   LayoutDashboard, Library, MessageSquare, Pencil, ScrollText,
-  Settings, Sparkles, BookMarked
+  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -19,6 +19,7 @@ const mainItems = [
 
 const studyItems = [
   { title: "Study Helper", url: "/study", icon: BookOpen },
+  { title: "General AI", url: "/ai", icon: Bot },
   { title: "Quiz Generator", url: "/quiz", icon: Brain },
   { title: "Summaries", url: "/summary", icon: ScrollText },
   { title: "Past Papers", url: "/past-papers", icon: FileText },
@@ -30,7 +31,10 @@ const moreItems = [
   { title: "Resume Builder", url: "/resume", icon: Pencil },
   { title: "Books", url: "/books", icon: BookMarked },
   { title: "Saved Library", url: "/library", icon: Library },
+  { title: "Feedback", url: "/feedback", icon: MessageSquarePlus },
+  { title: "Admin", url: "/admin", icon: ShieldCheck },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Login", url: "/login", icon: LogIn },
 ];
 
 function NavGroup({ label, items, collapsed }: { label: string; items: typeof mainItems; collapsed: boolean }) {

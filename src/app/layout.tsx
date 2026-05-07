@@ -5,6 +5,14 @@ import "@/index.css";
 export const metadata: Metadata = {
   title: "Study Buddy AI",
   description: "AI-powered study helper, quiz generator, summaries, counseling, and ATS resume builder.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export const viewport: Viewport = {

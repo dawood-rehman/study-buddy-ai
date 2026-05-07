@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Brain, Home, LayoutDashboard, Library } from "lucide-react";
+import { BookOpen, Bot, Home, LayoutDashboard, Library } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,7 +8,7 @@ const items = [
   { icon: Home, label: "Home", to: "/" },
   { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
   { icon: BookOpen, label: "Study", to: "/study" },
-  { icon: Brain, label: "Quiz", to: "/quiz" },
+  { icon: Bot, label: "AI", to: "/ai" },
   { icon: Library, label: "Library", to: "/library" },
 ];
 

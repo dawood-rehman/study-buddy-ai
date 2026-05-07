@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth-context";
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -15,9 +16,11 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toaster />
-          <Sonner richColors closeButton position="top-right" />
-          <AppLayout>{children}</AppLayout>
+          <AuthProvider>
+            <Toaster />
+            <Sonner richColors closeButton position="top-right" />
+            <AppLayout>{children}</AppLayout>
+          </AuthProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

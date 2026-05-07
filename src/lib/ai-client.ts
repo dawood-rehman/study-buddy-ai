@@ -14,6 +14,8 @@ export interface AiResponsePayload {
   model: string;
   modelKey: string;
   modelReason: string;
+  fallbackModels?: string[];
+  modelFallbackUsed?: boolean;
 }
 
 interface ApiErrorPayload {

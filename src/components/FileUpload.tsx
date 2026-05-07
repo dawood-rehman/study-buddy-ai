@@ -1,23 +1,33 @@
 "use client";
 
-import { Upload, File, X } from "lucide-react";
+import { LockKeyhole, Upload, File, X } from "lucide-react";
 import { useState, useCallback, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
+import { useAuth } from "@/lib/auth-context";
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
   accept?: string;
   maxSizeMB?: number;
+  requireAuth?: boolean;
 }
 
-export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.html,.css,.png,.jpg,.jpeg", maxSizeMB = 10 }: FileUploadProps) {
+export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.html,.css,.png,.jpg,.jpeg,.doc,.docx,.xlsx", maxSizeMB = 10, requireAuth = true }: FileUploadProps) {
+  const { isAuthenticated } = useAuth();
   const inputId = useId();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFile = useCallback((file: File) => {
+    if (requireAuth && !isAuthenticated) {
+      toast.error("Login required", {
+        description: "Please login before uploading files.",
+      });
+      return;
+    }
+
     setError(null);
     if (file.size > maxSizeMB * 1024 * 1024) {
       const message = `File too large. Max ${maxSizeMB}MB.`;
@@ -30,7 +40,7 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.j
     toast.success("File selected", {
       description: file.name,
     });
-  }, [maxSizeMB, onFileSelect]);
+  }, [isAuthenticated, maxSizeMB, onFileSelect, requireAuth]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -47,11 +57,27 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.j
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
           dragActive ? "border-primary bg-secondary/50" : "border-border hover:border-primary/50"
         }`}
-        onClick={() => document.getElementById(inputId)?.click()}
+        onClick={() => {
+          if (requireAuth && !isAuthenticated) {
+            toast.error("Login required", {
+              description: "Please login before uploading files.",
+            });
+            return;
+          }
+          document.getElementById(inputId)?.click();
+        }}
       >
-        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+        {requireAuth && !isAuthenticated ? (
+          <LockKeyhole className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+        ) : (
+          <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+        )}
         <p className="text-sm font-medium text-foreground mb-1">Drop your file here or click to browse</p>
-        <p className="text-xs text-muted-foreground">PDF, text, code, or images up to {maxSizeMB}MB</p>
+        <p className="text-xs text-muted-foreground">
+          {requireAuth && !isAuthenticated
+            ? "Login is required for uploads"
+            : `PDF, DOC/DOCX, XLSX, text, code, or images up to ${maxSizeMB}MB`}
+        </p>
         <input
           id={inputId}
           type="file"

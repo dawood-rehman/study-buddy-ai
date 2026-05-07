@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BookOpen, Loader2, Send } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
+import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -125,7 +126,7 @@ export default function StudyPage() {
       {/* Response Area */}
       <div className="glass-card p-6 min-h-[200px] flex items-center justify-center">
         {response ? (
-          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-6 text-foreground">{response}</div>
+          <GeneratedContent content={response} title={question.trim() || "Study Explanation"} type="study" className="w-full" />
         ) : (
           <div className="text-center">
             <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />

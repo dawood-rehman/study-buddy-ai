@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText, Loader2, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
+import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,7 +83,7 @@ export default function PastPapersPage() {
 
       <div className="glass-card p-6">
         {solution ? (
-          <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">{solution}</div>
+          <GeneratedContent content={solution} title="Past Paper Solution" type="past-paper" />
         ) : (
           <div className="text-center">
             <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />

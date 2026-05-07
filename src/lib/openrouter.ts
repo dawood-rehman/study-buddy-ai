@@ -1,13 +1,42 @@
-export const OPENROUTER_MODELS = {
-  general: "openai/gpt-oss-120b:free",
-  computer: "qwen/qwen3-coder:free",
-  deep: "qwen/qwen3-next-80b-a3b-instruct:free",
+export const OPENROUTER_MODEL_FALLBACKS = {
+  general: [
+    "openai/gpt-oss-120b:free",
+    "z-ai/glm-4.5-air:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "openai/gpt-oss-20b:free",
+  ],
+  computer: [
+    "qwen/qwen3-coder:free",
+    "baidu/cobuddy:free",
+    "poolside/laguna-m.1:free",
+    "poolside/laguna-xs.2:free",
+    "openai/gpt-oss-120b:free",
+  ],
+  deep: [
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "openrouter/owl-alpha",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "openai/gpt-oss-120b:free",
+    "z-ai/glm-4.5-air:free",
+  ],
 } as const;
 
-export type OpenRouterModelKey = keyof typeof OPENROUTER_MODELS;
+export const OPENROUTER_MODELS = {
+  general: OPENROUTER_MODEL_FALLBACKS.general[0],
+  computer: OPENROUTER_MODEL_FALLBACKS.computer[0],
+  deep: OPENROUTER_MODEL_FALLBACKS.deep[0],
+} as const;
+
+export type OpenRouterModelKey = keyof typeof OPENROUTER_MODEL_FALLBACKS;
 export type ModelPreference = "auto" | OpenRouterModelKey;
 export type AiTask = "study" | "quiz" | "summary" | "past-paper" | "grammar" | "counseling" | "resume";
 export type AiLanguage = "english" | "urdu" | "roman-urdu";
+export type OpenRouterModelSelection = {
+  key: OpenRouterModelKey;
+  model: string;
+  models: string[];
+  reason: "manual" | "computer-topic" | "deep-work" | "default";
+};
 
 const computerSignals = [
   "algorithm",
@@ -47,6 +76,20 @@ const taskInstruction: Record<AiTask, string> = {
   resume: "Improve the resume content for ATS systems using concise, measurable, professional wording.",
 };
 
+function buildModelSelection(
+  key: OpenRouterModelKey,
+  reason: OpenRouterModelSelection["reason"],
+): OpenRouterModelSelection {
+  const models = Array.from(new Set(OPENROUTER_MODEL_FALLBACKS[key]));
+
+  return {
+    key,
+    model: models[0],
+    models,
+    reason,
+  };
+}
+
 export function selectOpenRouterModel({
   modelPreference,
   task,
@@ -55,39 +98,23 @@ export function selectOpenRouterModel({
   modelPreference: ModelPreference;
   task: AiTask;
   text: string;
-}) {
+}): OpenRouterModelSelection {
   if (modelPreference !== "auto") {
-    return {
-      key: modelPreference,
-      model: OPENROUTER_MODELS[modelPreference],
-      reason: "manual",
-    };
+    return buildModelSelection(modelPreference, "manual");
   }
 
   const searchable = text.toLowerCase();
   const isComputerTopic = computerSignals.some((signal) => searchable.includes(signal));
 
   if (isComputerTopic) {
-    return {
-      key: "computer" as const,
-      model: OPENROUTER_MODELS.computer,
-      reason: "computer-topic",
-    };
+    return buildModelSelection("computer", "computer-topic");
   }
 
   if (task === "resume" || task === "past-paper") {
-    return {
-      key: "deep" as const,
-      model: OPENROUTER_MODELS.deep,
-      reason: "deep-work",
-    };
+    return buildModelSelection("deep", "deep-work");
   }
 
-  return {
-    key: "general" as const,
-    model: OPENROUTER_MODELS.general,
-    reason: "default",
-  };
+  return buildModelSelection("general", "default");
 }
 
 export function buildOpenRouterMessages({

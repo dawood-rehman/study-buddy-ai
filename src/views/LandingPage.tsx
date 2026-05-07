@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { BookOpen, Brain, FileText, GraduationCap, Languages, MessageSquare, Pencil, ScrollText, Sparkles, ArrowRight, BookMarked } from "lucide-react";
+import { BookOpen, Bot, Brain, FileText, Languages, MessageSquare, MessageSquarePlus, Pencil, ScrollText, Sparkles, ArrowRight, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const features = [
   { icon: BookOpen, title: "Study Helper", desc: "Upload notes & get AI explanations", to: "/study", color: "bg-primary" },
+  { icon: Bot, title: "General AI", desc: "Ask questions and analyze document context", to: "/ai", color: "bg-study-green" },
   { icon: Brain, title: "Quiz Generator", desc: "Auto-generate MCQs & practice tests", to: "/quiz", color: "bg-study-blue" },
   { icon: ScrollText, title: "Summaries", desc: "Get concise summaries & revision notes", to: "/summary", color: "bg-study-purple" },
   { icon: FileText, title: "Past Papers", desc: "Upload papers & get step-by-step solutions", to: "/past-papers", color: "bg-study-pink" },
@@ -11,6 +12,7 @@ const features = [
   { icon: MessageSquare, title: "Counseling", desc: "Get personalized study guidance", to: "/counseling", color: "bg-study-green" },
   { icon: Pencil, title: "Resume Builder", desc: "Create professional resumes easily", to: "/resume", color: "bg-primary" },
   { icon: BookMarked, title: "Recommended Books", desc: "Curated books by top authors", to: "/books", color: "bg-study-blue" },
+  { icon: MessageSquarePlus, title: "Feedback", desc: "Send feedback and complaints to admin", to: "/feedback", color: "bg-study-purple" },
 ];
 
 export default function LandingPage() {

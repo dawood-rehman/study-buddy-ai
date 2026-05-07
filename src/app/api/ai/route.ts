@@ -16,6 +16,7 @@ const aiRequestSchema = z.object({
 });
 
 type OpenRouterPayload = {
+  model?: string;
   choices?: Array<{
     message?: {
       content?: string;
@@ -145,7 +146,9 @@ function parseOpenRouterError(payload: unknown, fallback: string) {
   return fallback;
 }
 
-function mapOpenRouterError(status: number, message: string, model: string) {
+function mapOpenRouterError(status: number, message: string, models: string[]) {
+  const modelList = models.join(", ");
+
   if (status === 400) {
     return {
       code: "OPENROUTER_BAD_REQUEST" as const,
@@ -170,14 +173,14 @@ function mapOpenRouterError(status: number, message: string, model: string) {
   if (status === 404) {
     return {
       code: "OPENROUTER_MODEL_UNAVAILABLE" as const,
-      message: `The selected OpenRouter model is unavailable: ${model}.`,
+      message: `OpenRouter could not use any selected model: ${modelList}.`,
     };
   }
 
   if (status === 429) {
     return {
       code: "OPENROUTER_RATE_LIMITED" as const,
-      message: "OpenRouter rate limit was reached. Wait a moment and try again.",
+      message: `OpenRouter rate limit was reached after trying the fallback models. Tried: ${modelList}.`,
     };
   }
 
@@ -230,8 +233,11 @@ export async function POST(request: NextRequest) {
         "X-OpenRouter-Title": process.env.OPENROUTER_SITE_NAME || "Study Buddy AI",
       },
       body: JSON.stringify({
-        model: modelSelection.model,
+        models: modelSelection.models,
         messages: buildOpenRouterMessages({ task, language, prompt, context, options }),
+        provider: {
+          allow_fallbacks: true,
+        },
         temperature: 0.35,
         max_tokens: 1400,
       }),
@@ -248,7 +254,7 @@ export async function POST(request: NextRequest) {
 
     if (!openRouterResponse.ok) {
       const detail = parseOpenRouterError(payload, rawText || "OpenRouter request failed.");
-      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, modelSelection.model);
+      const mappedError = mapOpenRouterError(openRouterResponse.status, detail, modelSelection.models);
 
       return createApiError(
         mappedError.code,
@@ -259,6 +265,7 @@ export async function POST(request: NextRequest) {
     }
 
     const content = payload?.choices?.[0]?.message?.content;
+    const resolvedModel = payload?.model || modelSelection.model;
 
     if (!content) {
       return createApiError("OPENROUTER_EMPTY_RESPONSE", "OpenRouter returned an empty response.", 502);
@@ -266,9 +273,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       content,
-      model: modelSelection.model,
+      model: resolvedModel,
       modelKey: modelSelection.key,
       modelReason: modelSelection.reason,
+      fallbackModels: modelSelection.models,
+      modelFallbackUsed: resolvedModel !== modelSelection.model,
     });
   } catch (error) {
     if (error instanceof SyntaxError) {

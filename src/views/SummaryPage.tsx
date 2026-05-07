@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, ScrollText, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { FileUpload } from "@/components/FileUpload";
+import { GeneratedContent } from "@/components/GeneratedContent";
 import { LanguageToggle, Language } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,7 +115,7 @@ export default function SummaryPage() {
 
       <div className="glass-card p-6 mt-6">
         {summary ? (
-          <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">{summary}</div>
+          <GeneratedContent content={summary} title={`${summaryType} Summary`} type="summary" />
         ) : (
           <div className="text-center">
             <ScrollText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
