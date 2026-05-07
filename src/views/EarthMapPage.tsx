@@ -169,6 +169,7 @@ export default function EarthMapPage() {
   const focusMarkerRef = useRef<LeafletMarker | null>(null);
   const placeMarkersRef = useRef<LeafletMarker[]>([]);
   const explorePlaceRef = useRef<(place: MapPlace, focus?: string, shouldGenerate?: boolean) => void>(() => undefined);
+  const generationIdRef = useRef(0);
 
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -191,11 +192,14 @@ export default function EarthMapPage() {
   };
 
   const explorePlace = async (place: MapPlace, focus = customFocus, shouldGenerate = true) => {
+    const generationId = generationIdRef.current + 1;
     setSelectedPlace(place);
     void focusMap(place, place.region === "Custom location" ? 11 : 5);
 
     if (!shouldGenerate) return;
 
+    generationIdRef.current = generationId;
+    setResponse(null);
     setIsLoading(true);
 
     try {
@@ -205,6 +209,9 @@ export default function EarthMapPage() {
         prompt: [
           `Create an AI world knowledge explorer brief for ${place.name}, ${place.region}.`,
           focus ? `User focus: ${focus}` : "Cover the full location profile.",
+          "Detect the location level from the place name and region: country, province/state, city, town, landmark, or coordinates. Give the report at that exact level.",
+          "If this is a city, focus on city-level history, neighborhoods/important places, local culture, economy, tourism, transport, and current importance.",
+          "If this is a country, focus on country-level history, culture, geography, politics, major cities, tourism, and important national facts.",
           "Include only relevant, location-specific information.",
           "Sections: General Info, Historical Importance, Famous Places, Culture & Traditions, Geography, Politics, Tourist Attractions, Interesting Facts, Important Events.",
           "Keep it concise but detailed enough for students and travelers.",
@@ -212,16 +219,19 @@ export default function EarthMapPage() {
         options: { mode: "earth-map-explorer", place: place.name, region: place.region, focus, latitude: place.latitude, longitude: place.longitude },
       });
 
+      if (generationIdRef.current !== generationId) return;
+
       setResponse(result.content);
       toast.success("Location guide ready", {
         description: `Model: ${result.model}`,
       });
     } catch (error) {
+      if (generationIdRef.current !== generationId) return;
       toast.error("Map AI failed", {
         description: getErrorMessage(error),
       });
     } finally {
-      setIsLoading(false);
+      if (generationIdRef.current === generationId) setIsLoading(false);
     }
   };
 
@@ -265,11 +275,11 @@ export default function EarthMapPage() {
         };
         explorePlaceRef.current(place, undefined, false);
         reverseGeocodePlace(event.latlng.lat, event.latlng.lng)
-          .then((resolvedPlace) => explorePlaceRef.current(resolvedPlace, undefined, false))
+          .then((resolvedPlace) => explorePlaceRef.current(resolvedPlace, undefined, true))
           .catch(() => explorePlaceRef.current({
             ...place,
             name: `Selected Location (${event.latlng.lat.toFixed(3)}, ${event.latlng.lng.toFixed(3)})`,
-          }, undefined, false));
+          }, undefined, true));
       });
 
       setIsMapLoading(false);
@@ -377,7 +387,15 @@ export default function EarthMapPage() {
             <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search city, country, landmark, region..." className="pl-10" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void handleSearchExplore();
+                  }}
+                  placeholder="Search city, country, landmark, region..."
+                  className="pl-10"
+                />
               </div>
               <Button className="gradient-primary w-full border-0 lg:w-auto" onClick={() => void handleSearchExplore()} disabled={isLoading || isSearching}>
                 {isLoading || isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -429,12 +447,20 @@ export default function EarthMapPage() {
             </section>
 
             <section className="glass-card p-4 sm:p-5">
-              {response ? (
+              {isLoading ? (
+                <div className="flex min-h-[320px] items-center justify-center text-center">
+                  <div>
+                    <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
+                    <p className="font-medium text-foreground">Generating report for {selectedPlace.name}</p>
+                    <p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">AI is preparing location details, history, culture, geography, politics, tourism, and key facts.</p>
+                  </div>
+                </div>
+              ) : response ? (
                 <GeneratedContent content={response} title={`${selectedPlace.name} AI Guide`} type="study" />
               ) : (
                 <div className="flex min-h-[320px] items-center justify-center text-center">
                   <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                    Pan, zoom, search, or click a location on the real map. Then generate an AI guide with history, culture, geography, politics, tourism, and important facts.
+                    Pan, zoom, search, or click a location on the real map. The AI report will generate automatically for countries, cities, landmarks, or selected coordinates.
                   </p>
                 </div>
               )}
