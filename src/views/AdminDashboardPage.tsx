@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 import { bookCategories, bookLanguages } from "@/lib/books";
+import { defaultLocalPaymentMethods, localPaymentMethodOrder, type LocalPaymentMethod, type LocalPaymentMethodDetails } from "@/lib/payment-methods";
 
 type AdminFeedbackItem = {
   id: string;
@@ -147,6 +148,11 @@ type PaymentFormState = {
   note: string;
 };
 
+type PaymentMethodsPayload = {
+  methods: Record<LocalPaymentMethod, LocalPaymentMethodDetails>;
+  updatedAt?: string | null;
+};
+
 type BookFormState = {
   title: string;
   authors: string;
@@ -216,6 +222,8 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [usage, setUsage] = useState<AdminUsagePayload | null>(null);
   const [payments, setPayments] = useState<AdminPaymentsPayload | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<Record<LocalPaymentMethod, LocalPaymentMethodDetails>>(defaultLocalPaymentMethods);
+  const [paymentMethodDrafts, setPaymentMethodDrafts] = useState<Record<LocalPaymentMethod, LocalPaymentMethodDetails>>(defaultLocalPaymentMethods);
   const [bookForm, setBookForm] = useState<BookFormState>(emptyBookForm);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(emptyPaymentForm);
   const [bookDrafts, setBookDrafts] = useState<Record<string, BookFormState>>({});
@@ -229,6 +237,8 @@ export default function AdminDashboardPage() {
   const [isUsersLoading, setIsUsersLoading] = useState(true);
   const [isUsageLoading, setIsUsageLoading] = useState(true);
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(true);
+  const [isPaymentMethodsLoading, setIsPaymentMethodsLoading] = useState(true);
+  const [isSavingPaymentMethods, setIsSavingPaymentMethods] = useState(false);
   const [isFileUploading, setIsFileUploading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
 
@@ -301,12 +311,27 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadPaymentMethods = async () => {
+    setIsPaymentMethodsLoading(true);
+    try {
+      const payload = await adminRequest<PaymentMethodsPayload>("/api/admin/payment-methods");
+      setPaymentMethods(payload.methods);
+      setPaymentMethodDrafts(payload.methods);
+      setAccessError(null);
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Could not load payment methods.");
+    } finally {
+      setIsPaymentMethodsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadItems();
     void loadBooks();
     void loadUsers();
     void loadUsage();
     void loadPayments();
+    void loadPaymentMethods();
   }, []);
 
   const handleUpdate = async (item: AdminFeedbackItem) => {
@@ -545,6 +570,36 @@ export default function AdminDashboardPage() {
       toast.error("Payment update failed", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
+    }
+  };
+
+  const updatePaymentMethodDraft = (method: LocalPaymentMethod, patch: Partial<LocalPaymentMethodDetails>) => {
+    setPaymentMethodDrafts((current) => ({
+      ...current,
+      [method]: {
+        ...current[method],
+        ...patch,
+        method,
+      },
+    }));
+  };
+
+  const handleSavePaymentMethods = async () => {
+    setIsSavingPaymentMethods(true);
+    try {
+      const payload = await adminRequest<PaymentMethodsPayload>("/api/admin/payment-methods", {
+        method: "PATCH",
+        body: JSON.stringify({ methods: paymentMethodDrafts }),
+      });
+      setPaymentMethods(payload.methods);
+      setPaymentMethodDrafts(payload.methods);
+      toast.success("Payment details updated");
+    } catch (error) {
+      toast.error("Payment details update failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsSavingPaymentMethods(false);
     }
   };
 
@@ -948,6 +1003,61 @@ export default function AdminDashboardPage() {
                       </div>
                     ))}
                   </div>
+
+                  <section className="glass-card p-4 sm:p-5">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="font-display text-lg font-semibold text-foreground">Local Payment Account Details</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">These details are shown to users on the Upgrade page for manual Pakistani payments.</p>
+                      </div>
+                      <Button className="gradient-primary border-0" onClick={handleSavePaymentMethods} disabled={isPaymentMethodsLoading || isSavingPaymentMethods}>
+                        {isSavingPaymentMethods ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Save Details
+                      </Button>
+                    </div>
+                    {isPaymentMethodsLoading ? (
+                      <div className="rounded-md border border-border bg-background p-4 text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                        Loading payment account details...
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        {localPaymentMethodOrder.map((method) => {
+                          const draft = paymentMethodDrafts[method];
+                          const saved = paymentMethods[method];
+
+                          return (
+                            <article key={method} className="rounded-md border border-border bg-background p-4">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <h3 className="font-display font-semibold text-foreground">{saved?.label || draft.label}</h3>
+                                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={draft.enabled}
+                                    onChange={(event) => updatePaymentMethodDraft(method, { enabled: event.target.checked })}
+                                    className="h-4 w-4 accent-primary"
+                                  />
+                                  Active
+                                </label>
+                              </div>
+                              <div className="space-y-3">
+                                <Input value={draft.label} onChange={(event) => updatePaymentMethodDraft(method, { label: event.target.value })} placeholder="Payment method label" />
+                                <Input value={draft.accountNumber} onChange={(event) => updatePaymentMethodDraft(method, { accountNumber: event.target.value })} placeholder="Account number" />
+                                <Input value={draft.accountTitle} onChange={(event) => updatePaymentMethodDraft(method, { accountTitle: event.target.value })} placeholder="Account title" />
+                                <Input value={draft.iban || ""} onChange={(event) => updatePaymentMethodDraft(method, { iban: event.target.value })} placeholder="IBAN / optional" />
+                                <Textarea
+                                  value={draft.instructions || ""}
+                                  onChange={(event) => updatePaymentMethodDraft(method, { instructions: event.target.value })}
+                                  placeholder="Instructions shown to users"
+                                  className="min-h-[92px]"
+                                />
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
 
                   <section className="glass-card p-4 sm:p-5">
                     <div className="mb-4 flex items-center gap-2">

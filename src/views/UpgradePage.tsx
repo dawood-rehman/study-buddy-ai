@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, Crown, Landmark, Loader2, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { PageHeader } from "@/components/PageHeader";
@@ -11,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/lib/auth-context";
+import { defaultLocalPaymentMethods, localPaymentMethodOrder, type LocalPaymentMethod, type LocalPaymentMethodDetails } from "@/lib/payment-methods";
 import { getSubscriptionProfile, subscriptionPlans, type SubscriptionPlan } from "@/lib/subscriptions";
 
 type PaidPlan = "standard" | "advanced";
-type LocalMethod = "easypaisa" | "jazzcash" | "bank";
+type LocalMethod = LocalPaymentMethod;
 type CheckoutProvider = "stripe" | "lemon-squeezy";
 
 const paidPlans: Array<{
@@ -60,6 +61,7 @@ export default function UpgradePage() {
   const [note, setNote] = useState("");
   const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | null>(null);
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<Record<LocalMethod, LocalPaymentMethodDetails>>(defaultLocalPaymentMethods);
 
   const profile = useMemo(() => getSubscriptionProfile({
     role: user?.role || "user",
@@ -72,6 +74,30 @@ export default function UpgradePage() {
     setSelectedPlan(plan);
     setAmount(planAmount(plan));
   };
+
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/payment-methods", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => {
+        if (active && payload?.methods) setPaymentMethods(payload.methods);
+      })
+      .catch(() => {
+        if (active) setPaymentMethods(defaultLocalPaymentMethods);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (paymentMethods[method]?.enabled) return;
+
+    const firstEnabled = localPaymentMethodOrder.find((item) => paymentMethods[item]?.enabled);
+    if (firstEnabled) setMethod(firstEnabled);
+  }, [method, paymentMethods]);
 
   const handleCheckout = async (provider: CheckoutProvider) => {
     setCheckoutProvider(provider);
@@ -104,6 +130,11 @@ export default function UpgradePage() {
   const handleLocalPayment = async () => {
     if (!transactionId.trim()) {
       toast.error("Transaction ID is required.");
+      return;
+    }
+
+    if (!paymentMethods[method]?.enabled) {
+      toast.error("Selected payment method is currently unavailable.");
       return;
     }
 
@@ -141,6 +172,8 @@ export default function UpgradePage() {
       setIsSubmittingLocal(false);
     }
   };
+
+  const selectedPaymentMethod = paymentMethods[method];
 
   return (
     <AuthGate title="Login required for upgrade" description="Login to buy or manage your Study Buddy AI subscription.">
@@ -245,18 +278,49 @@ export default function UpgradePage() {
                 <Select value={method} onValueChange={(value) => setMethod(value as LocalMethod)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="easypaisa">Easypaisa</SelectItem>
-                    <SelectItem value="jazzcash">JazzCash</SelectItem>
-                    <SelectItem value="bank">Bank Transfer</SelectItem>
+                    {localPaymentMethodOrder.map((item) => (
+                      <SelectItem key={item} value={item} disabled={!paymentMethods[item]?.enabled}>
+                        {paymentMethods[item]?.label || defaultLocalPaymentMethods[item].label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {selectedPaymentMethod ? (
+                  <div className="rounded-md border border-border bg-background p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-display font-semibold text-foreground">{selectedPaymentMethod.label}</h3>
+                      <span className={`rounded px-2 py-1 text-xs font-medium ${selectedPaymentMethod.enabled ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"}`}>
+                        {selectedPaymentMethod.enabled ? "Available" : "Unavailable"}
+                      </span>
+                    </div>
+                    <dl className="space-y-2 text-sm">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                        <dt className="text-muted-foreground">Account No.</dt>
+                        <dd className="font-medium text-foreground">{selectedPaymentMethod.accountNumber}</dd>
+                      </div>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                        <dt className="text-muted-foreground">Account Title</dt>
+                        <dd className="font-medium text-foreground">{selectedPaymentMethod.accountTitle}</dd>
+                      </div>
+                      {selectedPaymentMethod.iban ? (
+                        <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                          <dt className="text-muted-foreground">IBAN</dt>
+                          <dd className="font-medium text-foreground">{selectedPaymentMethod.iban}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    {selectedPaymentMethod.instructions ? (
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">{selectedPaymentMethod.instructions}</p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" type="number" min="0" />
                   <Input value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="Currency" />
                 </div>
                 <Input value={transactionId} onChange={(event) => setTransactionId(event.target.value)} placeholder="Transaction ID / reference number" />
                 <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note: sender name, phone number, screenshot reference, bank details..." className="min-h-[110px]" />
-                <Button className="w-full" variant="outline" onClick={handleLocalPayment} disabled={isSubmittingLocal || profile.isAdmin}>
+                <Button className="w-full" variant="outline" onClick={handleLocalPayment} disabled={isSubmittingLocal || profile.isAdmin || !selectedPaymentMethod?.enabled}>
                   {isSubmittingLocal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Landmark className="mr-2 h-4 w-4" />}
                   Submit for Admin Approval
                 </Button>

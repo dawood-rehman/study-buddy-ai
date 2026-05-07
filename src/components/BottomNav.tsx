@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Bot, Home, LayoutDashboard, Library } from "lucide-react";
+import { BookMarked, BookOpen, Bot, Home, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,7 +9,7 @@ const items = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
   { icon: BookOpen, label: "Study", to: "/study" },
   { icon: Bot, label: "AI", to: "/ai" },
-  { icon: Library, label: "Library", to: "/library" },
+  { icon: BookMarked, label: "Books", to: "/books" },
 ];
 
 export function BottomNav() {

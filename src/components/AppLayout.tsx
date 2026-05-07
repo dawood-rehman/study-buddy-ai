@@ -5,6 +5,7 @@ import { LogIn, LogOut } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { BottomNav } from "@/components/BottomNav";
+import { PlatformNotice } from "@/components/PlatformNotice";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
@@ -15,12 +16,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full overflow-x-hidden">
-        <div className="hidden md:block">
-          <AppSidebar />
-        </div>
+        <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-40 flex min-h-14 items-center border-b border-border bg-card/50 px-3 backdrop-blur-sm sm:px-4">
-            <SidebarTrigger className="hidden md:flex mr-3" />
+            <SidebarTrigger className="mr-2 flex md:mr-3" />
             <div className="flex min-w-0 items-center gap-2 md:hidden">
               <div className="gradient-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                 <span className="text-primary-foreground text-xs font-bold">S</span>
@@ -32,18 +31,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {user ? (
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => void signOut()}>
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Logout</span>
+                  <span>Logout</span>
                 </Button>
               ) : (
                 <Button asChild variant="ghost" size="sm" className="gap-2">
                   <Link href="/login">
                     <LogIn className="h-4 w-4" />
-                    <span className="hidden sm:inline">Login</span>
+                    <span>Login</span>
                   </Link>
                 </Button>
               )}
             </div>
           </header>
+          <PlatformNotice />
           <main className="w-full min-w-0 flex-1 overflow-x-hidden px-3 py-5 pb-24 sm:px-5 md:px-6 md:py-7 md:pb-8 lg:px-8">
             {children}
           </main>

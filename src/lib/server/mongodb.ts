@@ -75,6 +75,7 @@ export async function ensureIndexes() {
       db.collection("payments").createIndex({ status: 1, createdAt: -1 }),
       db.collection("payments").createIndex({ plan: 1, status: 1 }),
       db.collection("payments").createIndex({ providerEventId: 1 }, { unique: true, sparse: true }),
+      db.collection("platformSettings").createIndex({ key: 1 }, { unique: true }),
     ]);
   }).catch((error) => {
     cache.indexesPromise = undefined;

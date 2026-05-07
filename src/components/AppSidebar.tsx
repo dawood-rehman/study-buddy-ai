@@ -3,7 +3,7 @@
 import {
   BookOpen, Brain, FileText, Home, Languages,
   LayoutDashboard, Library, MessageSquare, Pencil, ScrollText,
-  Settings, Sparkles, BookMarked, Bot, LogIn, ShieldCheck, MessageSquarePlus, LogOut, Globe2, CreditCard
+  Settings, Sparkles, BookMarked, Bot, ShieldCheck, MessageSquarePlus, Globe2, CreditCard, X
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/lib/auth-context";
@@ -35,7 +35,7 @@ const moreItems = [
   { title: "Saved Library", url: "/library", icon: Library },
 ];
 
-function NavGroup({ label, items, collapsed }: { label: string; items: typeof mainItems; collapsed: boolean }) {
+function NavGroup({ label, items, collapsed, onNavigate }: { label: string; items: typeof mainItems; collapsed: boolean; onNavigate?: () => void }) {
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -44,7 +44,13 @@ function NavGroup({ label, items, collapsed }: { label: string; items: typeof ma
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild>
-                <NavLink to={item.url} end={item.url === "/"} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                <NavLink
+                  to={item.url}
+                  end={item.url === "/"}
+                  className="hover:bg-sidebar-accent/50"
+                  activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  onClick={onNavigate}
+                >
                   <item.icon className="mr-2 h-4 w-4" />
                   {!collapsed && <span>{item.title}</span>}
                 </NavLink>
@@ -58,31 +64,43 @@ function NavGroup({ label, items, collapsed }: { label: string; items: typeof ma
 }
 
 export function AppSidebar() {
-  const { state } = useSidebar();
-  const { user, signOut } = useAuth();
-  const collapsed = state === "collapsed";
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { user } = useAuth();
+  const collapsed = !isMobile && state === "collapsed";
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const accountItems = [
     { title: "Feedback", url: "/feedback", icon: MessageSquarePlus },
     { title: "Settings", url: "/settings", icon: Settings },
     ...(user && user.role !== "admin" ? [{ title: "Upgrade", url: "/upgrade", icon: CreditCard }] : []),
     ...(user?.role === "admin" ? [{ title: "Admin", url: "/admin", icon: ShieldCheck }] : []),
-    { title: user ? "Logout" : "Login", url: "/login", icon: user ? LogOut : LogIn },
   ];
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <div className="p-4 flex items-center gap-2">
+        <div className="flex items-center gap-2 p-4">
           <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0">
             <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
           {!collapsed && (
             <span className="font-display font-bold text-sidebar-foreground text-lg">StudyAI</span>
           )}
+          {isMobile ? (
+            <button
+              type="button"
+              className="ml-auto rounded-md p-2 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={closeMobileSidebar}
+              aria-label="Close menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
-        <NavGroup label="Menu" items={mainItems} collapsed={collapsed} />
-        <NavGroup label="Study Tools" items={studyItems} collapsed={collapsed} />
-        <NavGroup label="More" items={moreItems} collapsed={collapsed} />
+        <NavGroup label="Menu" items={mainItems} collapsed={collapsed} onNavigate={closeMobileSidebar} />
+        <NavGroup label="Study Tools" items={studyItems} collapsed={collapsed} onNavigate={closeMobileSidebar} />
+        <NavGroup label="More" items={moreItems} collapsed={collapsed} onNavigate={closeMobileSidebar} />
         <SidebarGroup>
           <SidebarGroupLabel>Account</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -90,17 +108,15 @@ export function AppSidebar() {
               {accountItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    {item.title === "Logout" ? (
-                      <button type="button" className="w-full hover:bg-sidebar-accent/50" onClick={() => void signOut()}>
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </button>
-                    ) : (
-                      <NavLink to={item.url} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    )}
+                    <NavLink
+                      to={item.url}
+                      className="hover:bg-sidebar-accent/50"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      onClick={closeMobileSidebar}
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
