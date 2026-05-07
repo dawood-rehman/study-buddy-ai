@@ -21,6 +21,8 @@ export const OPENROUTER_MODEL_FALLBACKS = {
   ],
 } as const;
 
+const OPENROUTER_MAX_FALLBACK_MODELS = 3;
+
 export const OPENROUTER_MODELS = {
   general: OPENROUTER_MODEL_FALLBACKS.general[0],
   computer: OPENROUTER_MODEL_FALLBACKS.computer[0],
@@ -80,7 +82,7 @@ function buildModelSelection(
   key: OpenRouterModelKey,
   reason: OpenRouterModelSelection["reason"],
 ): OpenRouterModelSelection {
-  const models = Array.from(new Set(OPENROUTER_MODEL_FALLBACKS[key]));
+  const models = Array.from(new Set(OPENROUTER_MODEL_FALLBACKS[key])).slice(0, OPENROUTER_MAX_FALLBACK_MODELS);
 
   return {
     key,

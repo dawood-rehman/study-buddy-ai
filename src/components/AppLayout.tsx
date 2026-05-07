@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogIn, UserCircle } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { BottomNav } from "@/components/BottomNav";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <SidebarProvider>
@@ -27,12 +27,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="font-display font-bold text-foreground">StudyAI</span>
             </div>
             <div className="ml-auto">
-              <Button asChild variant="ghost" size="sm" className="gap-2">
-                <Link href="/login">
-                  {user ? <UserCircle className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-                  <span className="hidden sm:inline">{user ? user.name : "Login"}</span>
-                </Link>
-              </Button>
+              {user ? (
+                <Button variant="ghost" size="sm" className="gap-2" onClick={() => void signOut()}>
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                </Button>
+              ) : (
+                <Button asChild variant="ghost" size="sm" className="gap-2">
+                  <Link href="/login">
+                    <LogIn className="h-4 w-4" />
+                    <span className="hidden sm:inline">Login</span>
+                  </Link>
+                </Button>
+              )}
             </div>
           </header>
           <main className="flex-1 px-4 py-5 pb-24 sm:px-5 md:px-6 md:py-7 md:pb-8 lg:px-8">
