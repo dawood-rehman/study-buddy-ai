@@ -1,3 +1,5 @@
+"use client";
+
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { BottomNav } from "@/components/BottomNav";
@@ -19,7 +21,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="font-display font-bold text-foreground">StudyAI</span>
             </div>
           </header>
-          <main className="flex-1 p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
+          <main className="flex-1 px-4 py-5 pb-24 sm:px-5 md:px-6 md:py-7 md:pb-8 lg:px-8">
             {children}
           </main>
         </div>

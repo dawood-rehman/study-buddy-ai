@@ -1,10 +1,11 @@
+"use client";
+
 import {
-  BookOpen, Brain, FileText, GraduationCap, Home, Languages,
+  BookOpen, Brain, FileText, Home, Languages,
   LayoutDashboard, Library, MessageSquare, Pencil, ScrollText,
   Settings, Sparkles, BookMarked
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -33,7 +34,6 @@ const moreItems = [
 ];
 
 function NavGroup({ label, items, collapsed }: { label: string; items: typeof mainItems; collapsed: boolean }) {
-  const location = useLocation();
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>

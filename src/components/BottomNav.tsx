@@ -1,5 +1,8 @@
+"use client";
+
 import { BookOpen, Brain, Home, LayoutDashboard, Library } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const items = [
   { icon: Home, label: "Home", to: "/" },
@@ -10,17 +13,17 @@ const items = [
 ];
 
 export function BottomNav() {
-  const location = useLocation();
+  const pathname = usePathname();
 
   return (
     <nav className="bottom-nav md:hidden">
       <div className="flex justify-around py-2">
         {items.map(({ icon: Icon, label, to }) => {
-          const active = location.pathname === to;
+          const active = pathname === to;
           return (
             <Link
               key={to}
-              to={to}
+              href={to}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
                 active ? "text-primary" : "text-muted-foreground"
               }`}

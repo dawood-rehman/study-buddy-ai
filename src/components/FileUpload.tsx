@@ -1,6 +1,9 @@
+"use client";
+
 import { Upload, File, X } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useId } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -8,7 +11,8 @@ interface FileUploadProps {
   maxSizeMB?: number;
 }
 
-export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.png,.jpg,.jpeg", maxSizeMB = 10 }: FileUploadProps) {
+export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.md,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.html,.css,.png,.jpg,.jpeg", maxSizeMB = 10 }: FileUploadProps) {
+  const inputId = useId();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,11 +20,16 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.png,.jpg,.jpeg",
   const handleFile = useCallback((file: File) => {
     setError(null);
     if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`File too large. Max ${maxSizeMB}MB.`);
+      const message = `File too large. Max ${maxSizeMB}MB.`;
+      setError(message);
+      toast.error(message);
       return;
     }
     setSelectedFile(file);
     onFileSelect(file);
+    toast.success("File selected", {
+      description: file.name,
+    });
   }, [maxSizeMB, onFileSelect]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -38,13 +47,13 @@ export function FileUpload({ onFileSelect, accept = ".pdf,.txt,.png,.jpg,.jpeg",
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
           dragActive ? "border-primary bg-secondary/50" : "border-border hover:border-primary/50"
         }`}
-        onClick={() => document.getElementById("file-input")?.click()}
+        onClick={() => document.getElementById(inputId)?.click()}
       >
         <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
         <p className="text-sm font-medium text-foreground mb-1">Drop your file here or click to browse</p>
-        <p className="text-xs text-muted-foreground">PDF, TXT, or images up to {maxSizeMB}MB</p>
+        <p className="text-xs text-muted-foreground">PDF, text, code, or images up to {maxSizeMB}MB</p>
         <input
-          id="file-input"
+          id={inputId}
           type="file"
           accept={accept}
           className="hidden"
